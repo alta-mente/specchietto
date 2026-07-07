@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Store, Clock, Globe } from 'lucide-react';
+import { Save, Store, Clock, Globe, Code } from 'lucide-react';
 
 export const SettingsTab = ({ sync }) => {
   const [activeSection, setActiveSection] = useState('general');
@@ -13,7 +13,8 @@ export const SettingsTab = ({ sync }) => {
   const menuItems = [
     { id: 'general', label: 'Generali', icon: <Store size={18} /> },
     { id: 'hours', label: 'Orari Salone', icon: <Clock size={18} /> },
-    { id: 'booking', label: 'Prenotazioni Online', icon: <Globe size={18} /> }
+    { id: 'booking', label: 'Prenotazioni Online', icon: <Globe size={18} /> },
+    { id: 'integration', label: 'Integrazione Sito', icon: <Code size={18} /> }
   ];
 
   return (
@@ -134,6 +135,36 @@ export const SettingsTab = ({ sync }) => {
                 {saving ? 'Salvataggio...' : 'Salva Regole'}
               </button>
             </div>
+          </div>
+        )}
+
+        {activeSection === 'integration' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>Integrazione col tuo sito web</h3>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 16px 0' }}>Copia questo codice e incollalo nel tuo sito web per mostrare il pulsante o il modulo di prenotazione direttamente ai tuoi clienti.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: '500', color: '#334155' }}>Pulsante di prenotazione (Link diretto)</label>
+              <div style={{ position: 'relative' }}>
+                <textarea 
+                  readOnly 
+                  value={`<a href="https://specchietto.it/#/prenota?business=${sync.restaurants.find(r => r.id === sync.restaurantId)?.slug || 'demo'}" target="_blank" style="background-color: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">Prenota Ora</a>`}
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#f8fafc', color: '#334155', minHeight: '80px', resize: 'none' }} 
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: '500', color: '#334155' }}>Widget integrato (iFrame)</label>
+              <div style={{ position: 'relative' }}>
+                <textarea 
+                  readOnly 
+                  value={`<iframe src="https://specchietto.it/#/prenota?business=${sync.restaurants.find(r => r.id === sync.restaurantId)?.slug || 'demo'}" width="100%" height="600" frameborder="0" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></iframe>`}
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#f8fafc', color: '#334155', minHeight: '80px', resize: 'none' }} 
+                />
+              </div>
+            </div>
+
           </div>
         )}
 

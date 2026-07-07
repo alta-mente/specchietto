@@ -6,7 +6,7 @@ import { ClientsTab } from './ClientsTab';
 import { OverviewTab } from './OverviewTab';
 import { SettingsTab } from './SettingsTab';
 import { MarketingTab } from './MarketingTab';
-import { LayoutDashboard, Calendar, Users, Scissors, Settings, Megaphone, LogOut, Briefcase, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Scissors, Settings, Megaphone, LogOut, Briefcase, ChevronDown, ExternalLink } from 'lucide-react';
 
 const TABS = [
   { id: 'overview', label: 'Panoramica', icon: <LayoutDashboard size={20} /> },
@@ -193,6 +193,40 @@ export const Dashboard = ({ sync, onLogout }) => {
               {tab.label}
             </button>
           ))}
+
+          <div style={{ margin: '24px 0 8px 16px', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Strumenti
+          </div>
+          
+          <a
+            href={`#/prenota?business=${currentRestaurant?.slug || 'demo'}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontSize: '0.9rem',
+              fontWeight: '500',
+              backgroundColor: 'transparent',
+              color: '#94a3b8',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <ExternalLink size={18} />
+            Pagina Pubblica
+          </a>
         </nav>
 
         {/* User / Logout */}
