@@ -12,11 +12,11 @@ import { config } from 'dotenv';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 
-// Load environment variables
-config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load environment variables from backend/.env regardless of the process's cwd
+config({ path: join(__dirname, '.env') });
 
 // Firebase Admin SDK dynamic initialization (checks both env variable and local folder/repository root for Render)
 const firebaseKeyPathInBackend = join(__dirname, 'firebase-service-account.json');
