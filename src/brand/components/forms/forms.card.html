@@ -1,0 +1,44 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Forms" subtitle="Input, Select, Switch & Checkbox with states" -->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;padding:26px 28px;background:var(--surface-card);font-family:var(--font-sans)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px 26px;align-items:start}
+  .stack{display:flex;flex-direction:column;gap:16px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<script type="text/babel">
+const { Input, Select, Switch, Checkbox, Icon } = window.FicodindiaDesignSystem_613bb9;
+function Demo() {
+  const [on, setOn] = React.useState(true);
+  return (
+    <div className="cols">
+      <div className="stack">
+        <Input label="Nome ospite" placeholder="es. Giulia Rossi" iconLeft={<Icon name="user" size={18} />} />
+        <Input label="Telefono" defaultValue="+39 33" error="Numero non valido" />
+      </div>
+      <div className="stack">
+        <Select label="Coperti" placeholder="Seleziona" options={[{value:'2',label:'2 persone'},{value:'4',label:'4 persone'},{value:'6',label:'6 persone'}]} />
+        <div className="stack" style={{gap:12}}>
+          <Switch checked={on} onChange={e=>setOn(e.target.checked)} label="Conferma automatica" />
+          <Checkbox defaultChecked label="Accetto i termini" description="Politica di cancellazione 24h" />
+          <Checkbox indeterminate label="Tutti i tavoli" />
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

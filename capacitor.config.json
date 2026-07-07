@@ -1,0 +1,14 @@
+{
+  "appId": "com.specchietto.app",
+  "appName": "Specchietto",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

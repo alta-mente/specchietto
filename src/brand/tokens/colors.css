@@ -1,0 +1,176 @@
+/* ============================================================
+   Ficodindia · Colors
+   ------------------------------------------------------------
+   Brand DNA: the prickly pear (fico d'India). A vibrant,
+   multi-color, energetic palette anchored by warm charcoal ink.
+     Verde Fico    #3EC29E  · the cactus pads      (brand / success)
+     Rosso Fico    #D00E0E  · the fruit & flowers  (pop / danger)
+     Carbone       #3C3C3C  · the wordmark ink      (primary ink)
+   Brights added by the brand:
+     Giallo        #FAD10D  · warning / energy
+     Arancio       #FF8500  · accent / "in service"
+     Lavanda       #ABA7FF  · soft accent / VIP
+     Blu           #2052B0  · info / links
+   ============================================================ */
+
+:root {
+  /* ---- Raw brand seeds ---- */
+  --fico-green:    #3EC29E;
+  --fico-red:      #D00E0E;
+  --fico-charcoal: #3C3C3C;
+  --fico-yellow:   #FAD10D;
+  --fico-orange:   #FF8500;
+  --fico-lavender: #ABA7FF;
+  --fico-blue:     #2052B0;
+
+  /* ---- Verde Fico (green) ---- */
+  --green-50:  #EEFBF6;
+  --green-100: #D6F4EA;
+  --green-200: #ABE8D3;
+  --green-300: #76D8B8;
+  --green-400: #4FCBA6;
+  --green-500: #3EC29E; /* base */
+  --green-600: #2BA585;
+  --green-700: #1F836B;
+  --green-800: #196654;
+  --green-900: #134B3E;
+
+  /* ---- Rosso Fico (red) ---- */
+  --red-50:  #FDECEC;
+  --red-100: #FBD2D2;
+  --red-200: #F5A3A3;
+  --red-300: #ED6E6E;
+  --red-400: #E03A3A;
+  --red-500: #D00E0E; /* base */
+  --red-600: #B00B0B;
+  --red-700: #8C0A0A;
+  --red-800: #690909;
+  --red-900: #4A0707;
+
+  /* ---- Giallo (yellow) ---- */
+  --yellow-50:  #FFFBE3;
+  --yellow-100: #FEF3B4;
+  --yellow-200: #FCE571;
+  --yellow-300: #FBDE3F;
+  --yellow-400: #FAD512;
+  --yellow-500: #FAD10D; /* base */
+  --yellow-600: #D9B000;
+  --yellow-700: #A08000;
+  --yellow-800: #6E5800;
+  --yellow-900: #4A3B00;
+
+  /* ---- Arancio (orange) ---- */
+  --orange-50:  #FFF4E6;
+  --orange-100: #FFE2BF;
+  --orange-200: #FFC480;
+  --orange-300: #FFA640;
+  --orange-400: #FF9119;
+  --orange-500: #FF8500; /* base */
+  --orange-600: #DB6E00;
+  --orange-700: #AD5600;
+  --orange-800: #7E3F00;
+  --orange-900: #562B00;
+
+  /* ---- Lavanda (lavender) ---- */
+  --lavender-50:  #F4F3FF;
+  --lavender-100: #E8E6FF;
+  --lavender-200: #CFCDFF;
+  --lavender-300: #B8B4FF;
+  --lavender-400: #ABA7FF; /* base */
+  --lavender-500: #938EF7;
+  --lavender-600: #756FE0;
+  --lavender-700: #5A55BC;
+  --lavender-800: #423E8E;
+  --lavender-900: #2E2B63;
+
+  /* ---- Blu (blue) ---- */
+  --blue-50:  #EAF1FB;
+  --blue-100: #CFDDF6;
+  --blue-200: #9EBBEC;
+  --blue-300: #6694DF;
+  --blue-400: #3B6FCB;
+  --blue-500: #2052B0; /* base */
+  --blue-600: #1A4493;
+  --blue-700: #143670;
+  --blue-800: #0E2750;
+  --blue-900: #091B38;
+
+  /* ---- Carbone / warm neutral ink ---- */
+  --ink-950: #1C1B1A;
+  --ink-900: #2A2927;
+  --ink-800: #3C3C3C; /* brand charcoal */
+  --ink-700: #55534F;
+  --ink-600: #706D67;
+  --ink-500: #8C8881;
+  --ink-400: #ABA69D;
+  --ink-300: #CAC4BA;
+  --ink-200: #E5E0D7;
+  --ink-100: #F1EDE6;
+  --ink-50:  #F8F5EF;
+  --paper:   #FBF8F2; /* warm cream app background */
+  --white:   #FFFFFF;
+
+  /* ============================================================
+     Semantic aliases — reference these in components
+     ============================================================ */
+
+  /* Text */
+  --text-primary:   var(--ink-900);
+  --text-secondary: var(--ink-600);
+  --text-muted:     var(--ink-500);
+  --text-inverse:   var(--white);
+  --text-on-brand:  var(--white);
+  --text-link:      var(--blue-600);
+
+  /* Surfaces */
+  --surface-app:    var(--paper);
+  --surface-card:   var(--white);
+  --surface-sunken: var(--ink-50);
+  --surface-raised: var(--white);
+  --surface-inverse:var(--ink-900);
+  --surface-brand:  var(--green-500);
+
+  /* Borders */
+  --border-subtle:  var(--ink-200);
+  --border-default: var(--ink-300);
+  --border-strong:  var(--ink-400);
+  --border-focus:   var(--green-500);
+
+  /* Brand roles */
+  --brand:          var(--green-500);
+  --brand-hover:    var(--green-600);
+  --brand-soft:     var(--green-100);
+  --ink-button:     var(--ink-800);
+  --ink-button-hover: var(--ink-950);
+
+  /* Semantic feedback */
+  --success:        var(--green-500);
+  --success-soft:   var(--green-100);
+  --success-text:   var(--green-700);
+  --warning:        var(--yellow-500);
+  --warning-soft:   var(--yellow-100);
+  --warning-text:   var(--yellow-700);
+  --danger:         var(--red-500);
+  --danger-soft:    var(--red-100);
+  --danger-text:    var(--red-700);
+  --info:           var(--blue-500);
+  --info-soft:      var(--blue-100);
+  --info-text:      var(--blue-700);
+  --accent:         var(--orange-500);
+  --accent-soft:    var(--orange-100);
+  --accent-text:    var(--orange-700);
+  --special:        var(--lavender-400);
+  --special-soft:   var(--lavender-100);
+  --special-text:   var(--lavender-700);
+
+  /* Reservation status mapping (product-specific) */
+  --status-confirmed: var(--green-500);   /* confermata  */
+  --status-pending:   var(--yellow-500);  /* in attesa   */
+  --status-seated:    var(--orange-500);  /* al tavolo   */
+  --status-vip:       var(--lavender-400);/* ospite VIP  */
+  --status-cancelled: var(--red-500);     /* annullata   */
+  --status-info:      var(--blue-500);    /* info / note */
+
+  /* Focus ring */
+  --ring: 0 0 0 3px color-mix(in srgb, var(--green-500) 38%, transparent);
+}

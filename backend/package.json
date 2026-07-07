@@ -1,0 +1,24 @@
+{
+  "name": "specchietto-backend",
+  "version": "1.0.0",
+  "description": "Backend multi-tenant per prenotazioni di servizi alla persona (parrucchieri, centri estetici, nail artist)",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "firebase-admin": "^13.10.0",
+    "nodemailer": "^8.0.10",
+    "socket.io": "^4.7.5",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

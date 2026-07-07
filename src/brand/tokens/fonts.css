@@ -1,0 +1,12 @@
+/* ============================================================
+   Ficodindia · Fonts
+   ------------------------------------------------------------
+   SUBSTITUTION NOTE: The ficodindia wordmark is a bold, rounded,
+   geometric all-caps sans. We did not receive the original font
+   file, so we substitute the closest free match:
+     · Fredoka          → display / headlines (rounded geometric)
+     · Plus Jakarta Sans → body & UI (clean humanist-geometric)
+     · JetBrains Mono    → codes, times, tabular numerics
+   Replace with the real brand font when available.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap');

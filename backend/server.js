@@ -1,0 +1,2042 @@
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import sqlite3 from 'sqlite3';
+import { createClient } from '@libsql/client';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
+import admin from 'firebase-admin';
+import { config } from 'dotenv';
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
+
+// Load environment variables
+config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Firebase Admin SDK dynamic initialization (checks both env variable and local folder/repository root for Render)
+const firebaseKeyPathInBackend = join(__dirname, 'firebase-service-account.json');
+const firebaseKeyPathInRoot = join(__dirname, '..', 'firebase-service-account.json');
+
+let firebaseKeyPath = firebaseKeyPathInBackend;
+if (!existsSync(firebaseKeyPath) && existsSync(firebaseKeyPathInRoot)) {
+  firebaseKeyPath = firebaseKeyPathInRoot;
+}
+
+let firebaseInitialized = false;
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    firebaseInitialized = true;
+    console.log('🔥 Firebase Admin SDK inizializzato con successo tramite variabile d\'ambiente.');
+  } catch (err) {
+    console.error('⚠️ Errore durante l\'inizializzazione di Firebase Admin tramite variabile d\'ambiente:', err);
+  }
+} else if (existsSync(firebaseKeyPath)) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(firebaseKeyPath)
+    });
+    firebaseInitialized = true;
+    console.log('🔥 Firebase Admin SDK inizializzato con successo da file.');
+  } catch (err) {
+    console.error('⚠️ Errore durante l\'inizializzazione di Firebase Admin da file:', err);
+  }
+} else {
+  console.log('ℹ️ File firebase-service-account.json e variabile FIREBASE_SERVICE_ACCOUNT non trovati. Le notifiche push non saranno inviate (modalità simulata).');
+}
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// PORT settings
+const PORT = process.env.PORT || 3001;
+
+// Database connection configuration (Hybrid: Turso Cloud / SQLite Local)
+const useTurso = !!process.env.TURSO_DATABASE_URL;
+let libsqlClient = null;
+let sqliteDb = null;
+
+if (useTurso) {
+  console.log('☁️ Connessione al database cloud Turso in corso...');
+  libsqlClient = createClient({
+    url: process.env.TURSO_DATABASE_URL,
+    authToken: process.env.TURSO_AUTH_TOKEN
+  });
+} else {
+  const dbPath = process.env.DATABASE_URL || join(__dirname, 'orders.db');
+  console.log('💾 Connessione al database SQLite locale in:', dbPath);
+  sqliteDb = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+      console.error('Errore durante la connessione al database SQLite locale:', err);
+    } else {
+      console.log('Database SQLite locale connesso correttamente.');
+    }
+  });
+}
+
+// Unified Promise Wrappers (handles both standard sqlite3 and libsql client)
+const dbRun = async (query, params = []) => {
+  if (useTurso) {
+    return await libsqlClient.execute({ sql: query, args: params });
+  } else {
+    return new Promise((resolve, reject) => {
+      sqliteDb.run(query, params, function (err) {
+        if (err) reject(err);
+        else resolve(this);
+      });
+    });
+  }
+};
+
+const dbAll = async (query, params = []) => {
+  if (useTurso) {
+    const res = await libsqlClient.execute({ sql: query, args: params });
+    return res.rows.map(row => {
+      const plain = {};
+      res.columns.forEach((col, idx) => {
+        plain[col] = row[col] !== undefined ? row[col] : row[idx];
+      });
+      return plain;
+    });
+  } else {
+    return new Promise((resolve, reject) => {
+      sqliteDb.all(query, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+  }
+};
+
+const dbGet = async (query, params = []) => {
+  if (useTurso) {
+    const res = await libsqlClient.execute({ sql: query, args: params });
+    if (res.rows.length === 0) return null;
+    const row = res.rows[0];
+    const plain = {};
+    res.columns.forEach((col, idx) => {
+      plain[col] = row[col] !== undefined ? row[col] : row[idx];
+    });
+    return plain;
+  } else {
+    return new Promise((resolve, reject) => {
+      sqliteDb.get(query, params, (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+  }
+};
+
+// Password Hashing & Verification Utilities
+const hashPassword = (password) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return { salt, hash };
+};
+
+const verifyPassword = (password, salt, hash) => {
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === verifyHash;
+};
+
+// Initialize Database schema and seed initial data
+const initDb = async () => {
+  try {
+    // 1. Create restaurants table
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS restaurants (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        slug TEXT UNIQUE,
+        logo TEXT,
+        primary_color TEXT,
+        accent_color TEXT,
+        active INTEGER DEFAULT 1,
+        created_at INTEGER
+      )
+    `);
+
+    // Add active column to restaurants in case of migration
+    try {
+      await dbRun(`ALTER TABLE restaurants ADD COLUMN active INTEGER DEFAULT 1`);
+    } catch (err) {
+      // Column already exists
+    }
+
+    // 3. Recreate settings and devices tables to support composite primary keys
+    const settingsColumns = await dbAll("PRAGMA table_info(settings)");
+    const hasRestaurantIdSettings = settingsColumns.some(c => c.name === 'restaurant_id');
+    if (settingsColumns.length > 0 && !hasRestaurantIdSettings) {
+      console.log('Migrazione settings: droppo la vecchia tabella singola...');
+      await dbRun(`DROP TABLE settings`);
+    }
+
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS settings (
+        restaurant_id TEXT,
+        key TEXT,
+        value TEXT,
+        PRIMARY KEY (restaurant_id, key)
+      )
+    `);
+
+    const devicesColumns = await dbAll("PRAGMA table_info(devices)");
+    const hasRestaurantIdDevices = devicesColumns.some(c => c.name === 'restaurant_id');
+    if (devicesColumns.length > 0 && !hasRestaurantIdDevices) {
+      console.log('Migrazione devices: droppo la vecchia tabella singola...');
+      await dbRun(`DROP TABLE devices`);
+    }
+
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS devices (
+        token TEXT,
+        restaurant_id TEXT,
+        timestamp INTEGER,
+        PRIMARY KEY (token, restaurant_id)
+      )
+    `);
+
+    // Create customers table for CRM profiling
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS customers (
+        phone TEXT,
+        restaurant_id TEXT,
+        name TEXT,
+        email TEXT,
+        notes TEXT,
+        no_show_count INTEGER DEFAULT 0,
+        blocked INTEGER DEFAULT 0,
+        created_at INTEGER,
+        PRIMARY KEY (phone, restaurant_id)
+      )
+    `);
+
+    // Create surveys table for reputation funnel
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS surveys (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        order_id TEXT UNIQUE,
+        customer_name TEXT,
+        customer_email TEXT,
+        rating_food INTEGER,
+        rating_service INTEGER,
+        rating_atmosphere INTEGER,
+        average_rating REAL,
+        comment TEXT,
+        request_callback INTEGER DEFAULT 0,
+        resolved INTEGER DEFAULT 0,
+        created_at INTEGER
+      )
+    `);
+
+    // Migrate surveys to add review_email_sent column
+    try {
+      await dbRun(`ALTER TABLE surveys ADD COLUMN review_email_sent INTEGER DEFAULT 0`);
+    } catch (err) {
+      // Column already exists
+    }
+
+    // Create whatsapp_logs table for simulated message dispatch
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS whatsapp_logs (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        phone TEXT,
+        message TEXT,
+        status TEXT,
+        timestamp INTEGER
+      )
+    `);
+
+    // 8. Create users table
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        email TEXT UNIQUE,
+        password_hash TEXT,
+        salt TEXT,
+        role TEXT,
+        created_at INTEGER
+      )
+    `);
+
+    // Add reset_token columns to users if they don't exist
+    try {
+      await dbRun('ALTER TABLE users ADD COLUMN reset_token TEXT');
+    } catch (e) {}
+    try {
+      await dbRun('ALTER TABLE users ADD COLUMN reset_token_expires INTEGER');
+    } catch (e) {}
+
+    // 9. Create sessions table
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        user_id TEXT,
+        restaurant_id TEXT,
+        role TEXT,
+        expires_at INTEGER
+      )
+    `);
+
+    // 9.5. Create leads table
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id TEXT PRIMARY KEY,
+        restaurant_name TEXT,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        timestamp INTEGER
+      )
+    `);
+
+    // Seed default users if empty
+    const usersCount = await dbGet('SELECT COUNT(*) as count FROM users');
+    if (usersCount.count === 0) {
+      console.log('Tabella users vuota. Creo gli utenti amministrativi di default...');
+      const DEFAULT_USERS = [
+        { id: 'usr-1', restaurant_id: null, email: 'superadmin@specchietto.app', password: 'changeme123', role: 'super_admin' }
+      ];
+
+      for (const u of DEFAULT_USERS) {
+        const { salt, hash } = hashPassword(u.password);
+        await dbRun(`
+          INSERT INTO users (id, restaurant_id, email, password_hash, salt, role, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [u.id, u.restaurant_id, u.email, hash, salt, u.role, Date.now()]);
+      }
+      console.log('Seeding utenti completato.');
+    }
+
+  } catch (err) {
+    console.error('Errore durante l\'inizializzazione del database:', err);
+  }
+};
+initDb();
+
+// Configurazione SMTP per le notifiche email
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_FROM = process.env.SMTP_FROM || '"Specchietto" <noreply@specchietto.app>';
+const SMTP_TO = process.env.SMTP_TO || ''; // Indirizzo email del ristorante che riceve gli ordini
+
+let emailTransporter = null;
+
+if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_TO) {
+  try {
+    emailTransporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS
+      },
+      connectionTimeout: 5000, // 5 secondi
+      greetingTimeout: 5000,    // 5 secondi
+      socketTimeout: 10000,     // 10 secondi
+      dnsTimeout: 5000          // 5 secondi
+    });
+    console.log(`✉️ Servizio email configurato. Invio notifiche a: ${SMTP_TO}`);
+  } catch (err) {
+    console.error('❌ Errore configurazione SMTP email:', err);
+  }
+} else {
+  console.log('ℹ️ Credenziali SMTP non configurate del tutto (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_TO). Le notifiche email saranno simulate.');
+}
+
+// Helper to extract dynamic frontend origin from request headers with safe fallbacks
+const getOrigin = (req) => {
+  if (!req) return 'https://specchietto.vercel.app';
+  
+  const origin = req.headers.origin || '';
+  const referer = req.get('referer') || '';
+
+  const isLocalDev = (str) => {
+    return str.includes('localhost:5173') || str.includes('127.0.0.1:5173') || str.includes('localhost:3000');
+  };
+
+  if (isLocalDev(origin)) {
+    return origin;
+  }
+  if (isLocalDev(referer)) {
+    try {
+      return new URL(referer).origin;
+    } catch (e) {}
+  }
+
+  return 'https://specchietto.vercel.app';
+};
+
+// HTML Email Template Builder Helper
+const buildHtmlEmail = (title, subtitle, contentHtml, ctaText = null, ctaUrl = null, footerText = null, restaurant = null) => {
+  let logoUrl = 'https://specchietto.vercel.app/icon.png';
+  let titleText = 'Specchietto';
+  let primaryColor = '#FF9000'; // Default orange
+  let accentColor = '#e67e22';
+
+  if (restaurant) {
+    titleText = restaurant.name;
+    if (restaurant.logo) {
+      logoUrl = restaurant.logo.startsWith('http') 
+        ? restaurant.logo 
+        : `https://specchietto.vercel.app${restaurant.logo}`;
+    }
+    if (restaurant.primary_color) {
+      primaryColor = restaurant.primary_color;
+    }
+    if (restaurant.accent_color) {
+      accentColor = restaurant.accent_color;
+    }
+  }
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background-color: #f6f9fc;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .email-container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e6ebf1;
+    }
+    .email-header {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      padding: 32px;
+      text-align: center;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .email-logo {
+      height: 48px;
+      margin-bottom: 12px;
+    }
+    .email-header h1 {
+      color: #0f172a;
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .email-header p {
+      color: #64748b;
+      margin: 4px 0 0 0;
+      font-size: 14px;
+    }
+    .email-body {
+      padding: 40px 32px;
+      color: #334155;
+      line-height: 1.6;
+    }
+    .email-body h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 0;
+      margin-bottom: 16px;
+      border-bottom: 2px solid ${primaryColor}1a;
+      padding-bottom: 8px;
+    }
+    .info-card {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .info-item {
+      margin-bottom: 12px;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed #e2e8f0;
+      padding-bottom: 8px;
+    }
+    .info-item:last-child {
+      margin-bottom: 0;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .info-label {
+      font-weight: 600;
+      color: #64748b;
+    }
+    .info-value {
+      color: #0f172a;
+      text-align: right;
+    }
+    .dish-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    .dish-table th {
+      text-align: left;
+      padding: 10px;
+      background-color: #f1f5f9;
+      color: #475569;
+      font-weight: 600;
+    }
+    .dish-table td {
+      padding: 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .dish-total {
+      text-align: right;
+      font-weight: 700;
+      font-size: 16px;
+      color: ${primaryColor};
+      margin-top: 16px;
+    }
+    .btn-cta-wrapper {
+      text-align: center;
+      margin: 24px 0;
+    }
+    .btn-cta {
+      display: inline-block;
+      background: linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      text-align: center;
+      box-shadow: 0 4px 10px ${primaryColor}33;
+    }
+    .email-footer {
+      background-color: #f8fafc;
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid #e6ebf1;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .email-footer a {
+      color: ${primaryColor};
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="email-header">
+      <img src="${logoUrl}" alt="${titleText} logo" class="email-logo" style="max-height: 48px; width: auto; object-fit: contain;">
+      <h1>${titleText}</h1>
+      <p>${subtitle}</p>
+    </div>
+    <div class="email-body">
+      ${contentHtml}
+      
+      ${ctaText && ctaUrl ? `
+        <div class="btn-cta-wrapper">
+          <a href="${ctaUrl}" class="btn-cta">${ctaText}</a>
+        </div>
+      ` : ''}
+    </div>
+    <div class="email-footer">
+      ${footerText ? `<p>${footerText}</p>` : ''}
+      <p>&copy; ${new Date().getFullYear()} ${titleText}. Tutti i diritti riservati.<br>
+      Piattaforma Gestione Appuntamenti • <a href="https://specchietto.vercel.app">specchietto.vercel.app</a></p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+};
+
+const formatFriendlyDate = (dateStr) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const year = parseInt(parts[0], 10);
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  
+  const MONTHS = [
+    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+  ];
+  
+  const DAYS = [
+    'Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'
+  ];
+  
+  const d = new Date(year, monthIdx, day);
+  const dayOfWeek = DAYS[d.getDay()];
+  const monthName = MONTHS[monthIdx];
+  
+  if (dayOfWeek && monthName) {
+    return `${dayOfWeek} ${day} ${monthName} ${year}`;
+  }
+  return dateStr;
+};
+
+// Helper to send email alert to Super Admin on new restaurant registration
+const sendSuperAdminRestaurantAlert = async (newRestaurant, adminEmail, adminPassword) => {
+  const adminRecipient = 'arocchi@gmail.com';
+  
+  const subject = `[SaaS Platform] Nuovo ristorante registrato: ${newRestaurant.name}`;
+  const body = `Un nuovo ristorante si è registrato sulla piattaforma SaaS.
+
+Dettagli del Locale:
+- ID Ristorante: ${newRestaurant.id}
+- Nome Locale: ${newRestaurant.name}
+- Slug: ${newRestaurant.slug}
+- Colore Primario: ${newRestaurant.primary_color}
+- Colore Accento: ${newRestaurant.accent_color}
+- Data Registrazione: ${new Date(newRestaurant.created_at).toLocaleString('it-IT')}
+
+L'account amministrativo di default creato per il gestore è:
+- Email Amministratore: ${adminEmail}
+- Password Temporanea: ${adminPassword}
+
+Il locale è stato inizializzato con i parametri e i piatti di cortesia di default.`;
+
+  const contentHtml = `
+    <h2>Dettagli Locale Registrato</h2>
+    <div class="info-card">
+      <div class="info-item">
+        <span class="info-label">ID Ristorante:</span>
+        <span class="info-value">${newRestaurant.id}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Nome Ristorante:</span>
+        <span class="info-value">${newRestaurant.name}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Slug (Sottodominio):</span>
+        <span class="info-value" style="font-weight: bold; color: #ff9000;">${newRestaurant.slug}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Colore Primario:</span>
+        <span class="info-value" style="color: ${newRestaurant.primary_color}; font-weight: bold;">${newRestaurant.primary_color}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Colore Accento:</span>
+        <span class="info-value" style="color: ${newRestaurant.accent_color}; font-weight: bold;">${newRestaurant.accent_color}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Data Registrazione:</span>
+        <span class="info-value">${new Date(newRestaurant.created_at).toLocaleString('it-IT')}</span>
+      </div>
+    </div>
+
+    <h2>Credenziali Amministratore Locale</h2>
+    <div class="info-card" style="background-color: #ecfdf5; border: 1px solid #a7f3d0;">
+      <div class="info-item">
+        <span class="info-label" style="color: #047857;">Email Amministratore:</span>
+        <span class="info-value" style="color: #064e3b; font-weight: bold;">${adminEmail}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label" style="color: #047857;">Password Provvisoria:</span>
+        <span class="info-value" style="color: #064e3b; font-weight: bold;">${adminPassword}</span>
+      </div>
+    </div>
+    <p>Il locale è stato correttamente inizializzato con le impostazioni operative e il catalogo piatti di default.</p>
+  `;
+
+  const htmlBody = buildHtmlEmail(
+    `Nuovo Locale Registrato`,
+    `Registrazione tenant sulla piattaforma SaaS`,
+    contentHtml,
+    "Accedi alla Console SuperAdmin",
+    "https://specchietto.vercel.app",
+    null,
+    newRestaurant
+  );
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Email SuperAdmin Simulata] Nuovo ristorante registrato: ${newRestaurant.name} (Email: ${adminEmail} / Pass: ${adminPassword})`);
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) {
+      const match = SMTP_FROM.match(/<([^>]+)>/);
+      if (match && match[1]) {
+        fromEmail = match[1];
+      }
+    }
+    await emailTransporter.sendMail({
+      from: `"SaaS Platform" <${fromEmail}>`,
+      to: adminRecipient,
+      subject: subject,
+      text: body,
+      html: htmlBody
+    });
+    console.log(`✉️ Notifica email inviata con successo al Super Admin: ${adminRecipient}`);
+  } catch (err) {
+    console.error('❌ Errore notifica email al Super Admin:', err);
+  }
+};
+
+// TODO: non ancora richiamata da nessuna route — va agganciata al completamento
+// di un appuntamento, quando definiremo il modello resources/services/appointments.
+// Helper to send customer satisfaction survey email
+const sendSurveyEmail = async (order, req = null) => {
+  if (!order || !order.email || order.email.includes('walk-in') || order.email === 'Walk-in' || !order.email.includes('@')) {
+    return;
+  }
+  const restId = order.restaurant_id || 'rest-1';
+  let restaurantName = 'Specchietto';
+  let restaurant = null;
+
+  try {
+    restaurant = await dbGet("SELECT name, logo, primary_color, accent_color FROM restaurants WHERE id = ?", [restId]);
+    if (restaurant && restaurant.name) {
+      restaurantName = restaurant.name;
+    }
+  } catch (err) {
+    console.error("Errore nel recupero del ristorante per email sondaggio:", err);
+  }
+
+  const frontendUrl = process.env.FRONTEND_URL || getOrigin(req);
+
+  const surveyUrl = `${frontendUrl}/#/survey?id=${order.id}`;
+
+  const subject = `Com'è andata la tua esperienza da ${restaurantName}? 🍽️`;
+  const body = `Ciao ${order.name},
+grazie per essere stato nostro ospite da ${restaurantName}!
+
+Ci piacerebbe molto sapere com'è andata la tua esperienza. Bastano solo 30 secondi del tuo tempo per aiutarci a migliorare.
+
+Lascia la tua valutazione direttamente da questi link:
+- 5 stelle (Eccellente): ${surveyUrl}&rating=5
+- 4 stelle (Buono): ${surveyUrl}&rating=4
+- 3 stelle (Sufficiente): ${surveyUrl}&rating=3
+- 2 stelle (Insufficiente): ${surveyUrl}&rating=2
+- 1 stella (Pessimo): ${surveyUrl}&rating=1
+
+O scrivi una recensione completa:
+${surveyUrl}
+
+Un cordiale saluto,
+Lo staff di ${restaurantName}`;
+
+  const contentHtml = `
+    <p>Ciao <strong>${order.name}</strong>,</p>
+    <p>grazie per essere stato nostro ospite da <strong>${restaurantName}</strong>!</p>
+    <p>Ci piacerebbe moltissimo sapere com'è andata la tua esperienza. Il tuo parere è prezioso e ci aiuta a offrirti un servizio sempre migliore.</p>
+    
+    <div style="background-color: #f7fafc; border-radius: 8px; padding: 25px; margin: 30px 0; text-align: center; border: 1px solid #edf2f7;">
+      <p style="margin-top: 0; margin-bottom: 15px; font-weight: 600; color: #2d3748; font-size: 1.1rem;">Come valuteresti la tua esperienza?</p>
+      
+      <!-- Interactive Stars Row -->
+      <div style="margin: 20px 0;">
+        <a href="${surveyUrl}&rating=1" style="text-decoration: none; display: inline-block; margin: 0 4px;" title="Pessimo">
+          <span style="font-size: 2.5rem; color: #ffb007; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">★</span>
+        </a>
+        <a href="${surveyUrl}&rating=2" style="text-decoration: none; display: inline-block; margin: 0 4px;" title="Insufficiente">
+          <span style="font-size: 2.5rem; color: #ffb007; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">★</span>
+        </a>
+        <a href="${surveyUrl}&rating=3" style="text-decoration: none; display: inline-block; margin: 0 4px;" title="Sufficiente">
+          <span style="font-size: 2.5rem; color: #ffb007; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">★</span>
+        </a>
+        <a href="${surveyUrl}&rating=4" style="text-decoration: none; display: inline-block; margin: 0 4px;" title="Buono">
+          <span style="font-size: 2.5rem; color: #ffb007; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">★</span>
+        </a>
+        <a href="${surveyUrl}&rating=5" style="text-decoration: none; display: inline-block; margin: 0 4px;" title="Eccellente">
+          <span style="font-size: 2.5rem; color: #ffb007; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">★</span>
+        </a>
+      </div>
+      
+      <p style="font-size: 0.85rem; color: #718096; margin-top: 5px; margin-bottom: 20px;">Clicca su una stella per iniziare il sondaggio rapido (30 secondi)</p>
+      
+      <div style="margin-top: 15px;">
+        <a href="${surveyUrl}" class="email-cta" style="background-color: ${restaurant?.primary_color || '#ff9000'}; border-color: ${restaurant?.primary_color || '#ff9000'}; font-weight: bold; padding: 12px 28px; border-radius: 6px; color: #ffffff; text-decoration: none; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Scrivi una Recensione Dettagliata</a>
+      </div>
+    </div>
+    
+    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+    <p style="font-size: 0.8rem; color: #718096; text-align: center;">Se il pulsante non funziona, puoi copiare e incollare il seguente link nel tuo browser: <br/> <a href="${surveyUrl}" style="color: ${restaurant?.primary_color || '#ff9000'}; text-decoration: underline;">${surveyUrl}</a></p>
+  `;
+
+  const htmlBody = buildHtmlEmail(
+    `Com'è andata da ${restaurantName}?`,
+    `Il tuo parere è prezioso per noi`,
+    contentHtml,
+    null,
+    null,
+    `Ricevi questa email perché hai effettuato una prenotazione presso ${restaurantName}.`,
+    restaurant
+  );
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Email Sondaggio Simulata] Inviata a ${order.email} per ordine ${order.id}. URL: ${surveyUrl}`);
+    io.to(restId).emit('syncLog', {
+      timestamp: Date.now(),
+      type: 'info',
+      message: `✉️ [Email Sondaggio Simulata] Inviata a ${order.email} (Link: /#/survey?id=${order.id})`
+    });
+    // Mark as sent
+    try {
+      await dbRun("UPDATE orders SET survey_sent = 1 WHERE id = ?", [order.id]);
+    } catch (e) {
+      console.error("Errore aggiornamento survey_sent:", e);
+    }
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) {
+      const match = SMTP_FROM.match(/<([^>]+)>/);
+      if (match && match[1]) {
+        fromEmail = match[1];
+      }
+    }
+    await emailTransporter.sendMail({
+      from: `"${restaurantName}" <${fromEmail}>`,
+      to: order.email,
+      subject: subject,
+      text: body,
+      html: htmlBody
+    });
+    console.log(`✉️ Notifica email sondaggio inviata con successo a: ${order.email}`);
+    io.to(restId).emit('syncLog', {
+      timestamp: Date.now(),
+      type: 'info',
+      message: `✉️ Email sondaggio inviata con successo a: ${order.email}`
+    });
+    
+    // Mark as sent
+    try {
+      await dbRun("UPDATE orders SET survey_sent = 1 WHERE id = ?", [order.id]);
+    } catch (e) {
+      console.error("Errore aggiornamento survey_sent:", e);
+    }
+  } catch (err) {
+    console.error('❌ Errore notifica email sondaggio:', err);
+  }
+};
+
+// Helper to send customer public review follow-up email
+const sendFollowUpReviewEmail = async (survey) => {
+  const restId = survey.restaurant_id || 'rest-1';
+  let restaurantName = 'Specchietto';
+  let restaurant = null;
+  let googleReviewLink = '';
+  let tripadvisorReviewLink = '';
+
+  try {
+    restaurant = await dbGet("SELECT name, logo, primary_color, accent_color FROM restaurants WHERE id = ?", [restId]);
+    if (restaurant && restaurant.name) {
+      restaurantName = restaurant.name;
+    }
+    
+    // Get Google & TripAdvisor links from settings
+    const settingsRows = await dbAll("SELECT key, value FROM settings WHERE restaurant_id = ?", [restId]);
+    const settingsMap = {};
+    settingsRows.forEach(row => {
+      settingsMap[row.key] = row.value;
+    });
+    googleReviewLink = settingsMap['google_review_link'] || '';
+    tripadvisorReviewLink = settingsMap['tripadvisor_review_link'] || '';
+  } catch (err) {
+    console.error("Errore nel recupero dati per email follow-up:", err);
+  }
+
+  // If both links are empty, skip sending the follow-up
+  if (!googleReviewLink && !tripadvisorReviewLink) {
+    console.log(`ℹ️ [Follow-up Recensione] Saltato per ristorante ${restId} perché non ha link configurati.`);
+    return;
+  }
+
+  const subject = `Ci aiuti con una recensione su Google o TripAdvisor? ⭐`;
+  const bodyText = `Ciao ${survey.customer_name},
+grazie ancora per aver dedicato del tempo a lasciarci la tua valutazione positiva su ${restaurantName}!
+
+Se ti va, ti andrebbe di condividere la tua esperienza anche con altri clienti? Bastano pochissimi secondi per copiare e incollare la tua recensione sui nostri canali ufficiali.
+
+${googleReviewLink ? `Recensisci su Google: ${googleReviewLink}\n` : ''}${tripadvisorReviewLink ? `Recensisci su TripAdvisor: ${tripadvisorReviewLink}\n` : ''}
+${survey.comment ? `Ecco il testo che avevi scritto, pronto da copiare:
+"${survey.comment}"` : ''}
+
+Grazie di cuore per il tuo prezioso supporto!
+Lo staff di ${restaurantName}`;
+
+  let contentHtml = `
+    <p>Ciao <strong>${survey.customer_name}</strong>,</p>
+    <p>grazie ancora per aver dedicato del tempo a lasciarci la tua valutazione positiva su <strong>${restaurantName}</strong>!</p>
+    <p>Il tuo giudizio entusiasta ci rende molto felici. Se ti va, ti andrebbe di condividere la tua esperienza anche con altri clienti?</p>
+    <p>Bastano pochissimi secondi per copiare e incollare la tua recensione sui nostri canali ufficiali:</p>
+    
+    <div style="margin: 30px 0; text-align: center;">
+  `;
+
+  if (googleReviewLink) {
+    contentHtml += `
+      <a href="${googleReviewLink}" style="background-color: #4285F4; font-weight: bold; padding: 12px 24px; border-radius: 6px; color: #ffffff; text-decoration: none; display: inline-block; margin: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        Recensisci su Google ⭐
+      </a>
+    `;
+  }
+
+  if (tripadvisorReviewLink) {
+    contentHtml += `
+      <a href="${tripadvisorReviewLink}" style="background-color: #34E0A1; font-weight: bold; padding: 12px 24px; border-radius: 6px; color: #ffffff; text-decoration: none; display: inline-block; margin: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        Recensisci su TripAdvisor 🦉
+      </a>
+    `;
+  }
+
+  contentHtml += `</div>`;
+
+  if (survey.comment) {
+    contentHtml += `
+      <p style="margin-bottom: 5px;">Ecco il testo della tua recensione, pronto da copiare:</p>
+      <div style="background-color: #f7fafc; border: 1px dashed #cbd5e0; padding: 15px; border-radius: 6px; margin: 10px 0; font-style: italic; color: #4a5568;">
+        "${survey.comment}"
+      </div>
+      <p style="font-size: 0.85rem; color: #718096; text-align: center; margin-top: 0;">(Copia questo testo prima di cliccare sul link del canale scelto)</p>
+    `;
+  }
+
+  contentHtml += `
+    <p style="margin-top: 25px;">Grazie di cuore per il tuo prezioso supporto!</p>
+    <p>Un cordiale saluto,<br/><strong>Lo staff di ${restaurantName}</strong></p>
+  `;
+
+  const htmlBody = buildHtmlEmail(
+    `Ci aiuti su Google o TripAdvisor?`,
+    `Condividi il tuo entusiasmo`,
+    contentHtml,
+    null,
+    null,
+    `Ricevi questa email in seguito alla tua valutazione positiva del servizio presso ${restaurantName}.`,
+    restaurant
+  );
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Follow-up Recensione Simulata] Inviata a ${survey.customer_email} per feedback ${survey.id}`);
+    io.to(restId).emit('syncLog', {
+      timestamp: Date.now(),
+      type: 'info',
+      message: `✉️ [Follow-up Recensione Simulata] Inviata a ${survey.customer_email} per recensire su Google/TripAdvisor`
+    });
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) {
+      const match = SMTP_FROM.match(/<([^>]+)>/);
+      if (match && match[1]) {
+        fromEmail = match[1];
+      }
+    }
+    await emailTransporter.sendMail({
+      from: `"${restaurantName}" <${fromEmail}>`,
+      to: survey.customer_email,
+      subject: subject,
+      text: bodyText,
+      html: htmlBody
+    });
+    console.log(`✉️ Email follow-up recensione inviata con successo a: ${survey.customer_email}`);
+    io.to(restId).emit('syncLog', {
+      timestamp: Date.now(),
+      type: 'info',
+      message: `✉️ Email follow-up recensione inviata con successo a: ${survey.customer_email}`
+    });
+  } catch (err) {
+    console.error('❌ Errore invio email follow-up recensione:', err);
+  }
+};
+
+// TODO: non ancora richiamata da nessuna route — va agganciata alla creazione di un
+// nuovo appuntamento, quando definiremo il modello resources/services/appointments.
+// Helper to send push notifications to all registered devices of a specific restaurant
+const sendPushNotificationToAll = async (order) => {
+  if (!firebaseInitialized) {
+    console.log('ℹ️ Firebase non inizializzato. Notifica push simulata per l\'ordine di:', order.name);
+    return;
+  }
+  
+  const restId = order.restaurant_id || 'rest-1';
+  try {
+    const rows = await dbAll('SELECT token FROM devices WHERE restaurant_id = ?', [restId]);
+    const tokens = rows.map(r => r.token);
+    
+    if (tokens.length === 0) {
+      console.log(`ℹ️ Nessun dispositivo registrato per le notifiche push per il ristorante: ${restId}`);
+      return;
+    }
+    
+    const targetSetting = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'push_notification_target'", [restId]);
+    const openInBrowser = targetSetting && targetSetting.value === 'browser';
+
+    const messageTitle = order.type === 'delivery' ? 'Nuovo Ordine Domicilio!' : 'Nuova Prenotazione Tavolo!';
+    const messageBody = order.type === 'delivery' 
+      ? `Nuovo ordine per ${order.name} - Consegna in ${order.address}`
+      : `Nuova prenotazione per ${order.name} - Tavolo da ${order.guests} persone`;
+      
+    console.log(`📤 Invio notifica push a ${tokens.length} dispositivi del ristorante ${restId}...`);
+    
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens: tokens,
+      notification: {
+        title: messageTitle,
+        body: messageBody,
+      },
+      data: {
+        orderId: String(order.id),
+        type: String(order.type || ''),
+        name: String(order.name || ''),
+        restaurantId: String(restId),
+        click_action: 'ORDER_ACTIONS',
+        openInBrowser: String(openInBrowser)
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'notification_sound',
+          channelId: 'orders-channel-v4',
+          clickAction: 'ORDER_ACTIONS'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'notification_sound.caf',
+            category: 'ORDER_ACTIONS'
+          }
+        }
+      }
+    });
+    
+    console.log(`✅ Risultato invio push: ${response.successCount} inviati, ${response.failureCount} falliti.`);
+    
+    // Cleanup unregistered/invalid tokens
+    if (response.failureCount > 0) {
+      const tokensToRemove = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const errCode = resp.error?.code;
+          if (errCode === 'messaging/invalid-registration-token' || errCode === 'messaging/registration-token-not-registered') {
+            tokensToRemove.push(tokens[idx]);
+          }
+        }
+      });
+      
+      if (tokensToRemove.length > 0) {
+        console.log(`🧹 Rimozione di ${tokensToRemove.length} token non validi o scaduti per il ristorante ${restId}...`);
+        for (const t of tokensToRemove) {
+          await dbRun('DELETE FROM devices WHERE token = ? AND restaurant_id = ?', [t, restId]);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('❌ Errore durante l\'invio della notifica push:', err);
+  }
+};
+
+// HTTP REST API routes
+
+// Chiave segreta per la firma dei token stateless (JWT-like) per resistere ai reboot di Render
+const JWT_SECRET = process.env.JWT_SECRET || 'specchietto_super_secret_key_change_me';
+
+// Helper per generare un token stateless firmato (valido 30 giorni per evitare disconnessioni)
+const generateToken = (user) => {
+  const payload = {
+    user_id: user.id,
+    restaurant_id: user.restaurant_id,
+    role: user.role,
+    expires_at: Date.now() + 30 * 24 * 3600 * 1000 // 30 giorni
+  };
+  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const hmac = crypto.createHmac('sha256', JWT_SECRET);
+  hmac.update(payloadStr);
+  const signature = hmac.digest('base64url');
+  return `${payloadStr}.${signature}`;
+};
+
+// Helper per verificare un token stateless firmato
+const verifyToken = (token) => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [payloadStr, signature] = parts;
+    const hmac = crypto.createHmac('sha256', JWT_SECRET);
+    hmac.update(payloadStr);
+    const expectedSignature = hmac.digest('base64url');
+    if (signature !== expectedSignature) return null;
+    
+    const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
+    if (Date.now() > payload.expires_at) return null; // Scaduto
+    return payload;
+  } catch (e) {
+    return null;
+  }
+};
+
+// Middleware per l'autenticazione dei merchant/super_admin
+const requireAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Autenticazione richiesta' });
+    }
+    const token = authHeader.split(' ')[1];
+    
+    // 1. Tenta la verifica del token stateless firmato (JWT-like)
+    const tokenData = verifyToken(token);
+    if (tokenData) {
+      req.user = {
+        id: tokenData.user_id,
+        restaurant_id: tokenData.restaurant_id,
+        role: tokenData.role
+      };
+      return next();
+    }
+    
+    // 2. Fallback per le sessioni legacy nel database
+    const session = await dbGet('SELECT * FROM sessions WHERE token = ?', [token]);
+    if (session) {
+      if (Date.now() > session.expires_at) {
+        await dbRun('DELETE FROM sessions WHERE token = ?', [token]);
+        return res.status(401).json({ error: 'Sessione scaduta' });
+      }
+      req.user = {
+        id: session.user_id,
+        restaurant_id: session.restaurant_id,
+        role: session.role
+      };
+      return next();
+    }
+    
+    return res.status(401).json({ error: 'Sessione non valida o scaduta' });
+  } catch (err) {
+    res.status(500).json({ error: 'Errore interno di autenticazione' });
+  }
+};
+
+// Funzione helper per verificare che un merchant operi solo sul proprio ristorante
+const checkScope = (req, res, resourceRestaurantId) => {
+  if (req.user.role === 'super_admin') return true;
+  if (req.user.restaurant_id !== resourceRestaurantId) {
+    res.status(403).json({ error: 'Accesso negato. Non sei autorizzato a gestire questo locale.' });
+    return false;
+  }
+  return true;
+};
+
+// POST login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e password sono obbligatorie' });
+    }
+    
+    const user = await dbGet('SELECT * FROM users WHERE email = ?', [email]);
+    if (!user) {
+      return res.status(401).json({ error: 'Credenziali non valide' });
+    }
+    
+    const isValid = verifyPassword(password, user.salt, user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Credenziali non valide' });
+    }
+
+    // Check if restaurant is active (only for non-super admins)
+    if (user.role !== 'super_admin' && user.restaurant_id) {
+      const rest = await dbGet('SELECT active FROM restaurants WHERE id = ?', [user.restaurant_id]);
+      if (rest && rest.active === 0) {
+        return res.status(403).json({ error: 'L\'account di questo locale è disattivato. Contatta l\'amministratore del servizio.' });
+      }
+    }
+    
+    // Genera token di sessione stateless (valido 30 giorni)
+    const token = generateToken(user);
+    
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        restaurant_id: user.restaurant_id
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST logout
+app.post('/api/auth/logout', requireAuth, async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    // Rimuove la sessione dal database se era legacy, altrimenti fa solo successo
+    await dbRun('DELETE FROM sessions WHERE token = ?', [token]).catch(() => {});
+    res.json({ success: true, message: 'Logout effettuato con successo' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET auth profile (me)
+app.get('/api/auth/me', requireAuth, async (req, res) => {
+  try {
+    const user = await dbGet('SELECT id, email, role, restaurant_id FROM users WHERE id = ?', [req.user.id]);
+    if (!user) {
+      return res.status(404).json({ error: 'Utente non trovato' });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST update current user auth credentials (email/password)
+app.post('/api/auth/update', requireAuth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const userId = req.user.id;
+
+    if (!email && !password) {
+      return res.status(400).json({ error: 'Nessun dato da aggiornare fornito (email o password)' });
+    }
+
+    if (email) {
+      // Verifica se l'email è già usata da qualcun altro
+      const existingUser = await dbGet('SELECT * FROM users WHERE email = ? AND id != ?', [email, userId]);
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email già in uso da un altro utente' });
+      }
+      await dbRun('UPDATE users SET email = ? WHERE id = ?', [email, userId]);
+    }
+
+    if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'La password deve contenere almeno 6 caratteri' });
+      }
+      const { salt, hash } = hashPassword(password);
+      await dbRun('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?', [hash, salt, userId]);
+    }
+
+    res.json({ success: true, message: 'Credenziali aggiornate con successo' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST generate SSO token for a specific restaurant (requires super_admin role)
+app.post('/api/auth/sso', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Accesso negato: richiesto ruolo super_admin' });
+    }
+    
+    const { restaurant_id } = req.body;
+    if (!restaurant_id) {
+      return res.status(400).json({ error: 'restaurant_id è obbligatorio' });
+    }
+    
+    // Find the merchant user for this restaurant
+    const targetUser = await dbGet("SELECT id, email, role, restaurant_id FROM users WHERE restaurant_id = ? AND role = 'merchant'", [restaurant_id]);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Gestore non trovato per questo ristorante' });
+    }
+    
+    // Generate stateless token
+    const token = generateToken(targetUser);
+    
+    res.json({
+      token,
+      user: {
+        id: targetUser.id,
+        email: targetUser.email,
+        role: targetUser.role,
+        restaurant_id: targetUser.restaurant_id
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST update restaurant branding (logo, primary_color, accent_color)
+app.post('/api/restaurants/:id/branding', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { logo, primary_color, accent_color } = req.body;
+    
+    if (!checkScope(req, res, id)) return;
+    
+    await dbRun(`
+      UPDATE restaurants
+      SET logo = ?, primary_color = ?, accent_color = ?
+      WHERE id = ?
+    `, [logo, primary_color, accent_color, id]);
+    
+    // Retrieve the updated restaurant row
+    const updatedRestaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [id]);
+    
+    // Emit update via socket.io so client-side changes can take effect in real-time
+    io.to(id).emit('restaurantUpdated', updatedRestaurant);
+    io.emit('restaurantsUpdated', updatedRestaurant); // global update too
+    
+    console.log(`🎨 Branding aggiornato per il ristorante ${id}: logo=${logo}, primary=${primary_color}, accent=${accent_color}`);
+    res.json(updatedRestaurant);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST request password recovery link
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email obbligatoria' });
+    }
+
+    const user = await dbGet('SELECT * FROM users WHERE email = ?', [email]);
+    
+    // Per motivi di sicurezza, ritorniamo comunque 200 anche se l'utente non esiste
+    // per impedire l'enumerazione degli indirizzi email.
+    if (!user) {
+      return res.json({ success: true, message: 'Se l\'indirizzo email esiste, riceverai un link di ripristino a breve.' });
+    }
+
+    // Genera token di recupero casuale
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = Date.now() + 3600000; // Valido 1 ora
+
+    await dbRun('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?', [resetToken, resetTokenExpires, user.id]);
+
+    // Fetch user's restaurant profile for branding
+    let restaurant = null;
+    if (user.restaurant_id) {
+      restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [user.restaurant_id]);
+    }
+
+    // Determina l'origine dinamica (locale vs produzione)
+    const origin = getOrigin(req);
+
+    const resetUrl = `${origin}/#/reset-password?token=${resetToken}`;
+    
+    // Invia email al gestore
+    const brandName = restaurant ? restaurant.name : 'Specchietto';
+    const mailSubject = `Reimpostazione Password - ${brandName}`;
+    const mailBody = `Ciao,
+abbiamo ricevuto una richiesta di reimpostazione della password per il tuo account.
+
+Puoi reimpostare la tua password cliccando sul link seguente (valido per 1 ora):
+${resetUrl}
+
+Se non hai richiesto tu il ripristino, puoi ignorare questa email.
+
+Un cordiale saluto,
+Piattaforma ${brandName}`;
+
+    const mailHtml = buildHtmlEmail(
+      'Reimpostazione Password',
+      `${brandName} Account Recovery`,
+      `
+      <p>Ciao,</p>
+      <p>abbiamo ricevuto una richiesta per reimpostare la password del tuo account sulla piattaforma ${brandName}.</p>
+      <p>Clicca sul pulsante qui sotto per procedere e impostare una nuova password (il link scadrà tra 1 ora):</p>
+      `,
+      'Reimposta Password',
+      resetUrl,
+      'Se il pulsante non funziona, copia e incolla questo indirizzo nel browser:<br>' + resetUrl,
+      restaurant
+    );
+
+    // Invia l'email tramite il servizio configurato
+    transporter.sendMail({
+      from: SMTP_FROM || `"${brandName}" <noreply@specchietto.app>`,
+      to: email,
+      subject: mailSubject,
+      text: mailBody,
+      html: mailHtml
+    }).then(() => {
+      console.log(`✉️ Email di ripristino password inviata a: ${email}`);
+    }).catch(err => {
+      console.error("Errore nell'invio dell'email di ripristino password:", err);
+    });
+
+    res.json({ success: true, message: 'Se l\'indirizzo email esiste, riceverai un link di ripristino a breve.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST reset password using token
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token e password sono obbligatori' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La password deve contenere almeno 6 caratteri' });
+    }
+
+    const user = await dbGet('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?', [token, Date.now()]);
+    if (!user) {
+      return res.status(400).json({ error: 'Token non valido o scaduto. Richiedi un nuovo link di ripristino.' });
+    }
+
+    const { salt, hash } = hashPassword(password);
+    await dbRun('UPDATE users SET password_hash = ?, salt = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [hash, salt, user.id]);
+
+    res.json({ success: true, message: 'Password reimpostata con successo! Ora puoi effettuare il login.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST register device token
+app.post('/api/devices/register', async (req, res) => {
+  try {
+    const { token, restaurant_id } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Token mancante' });
+    }
+    const targetRestaurantId = restaurant_id || 'rest-1';
+    
+    // Rimuovi eventuali associazioni precedenti di questo token ad altri ristoranti
+    await dbRun('DELETE FROM devices WHERE token = ?', [token]);
+    
+    const timestamp = Date.now();
+    await dbRun(`
+      INSERT OR REPLACE INTO devices (token, restaurant_id, timestamp)
+      VALUES (?, ?, ?)
+    `, [token, targetRestaurantId, timestamp]);
+    
+    console.log(`📱 Dispositivo registrato con successo. Token: ${token.substring(0, 15)}...`);
+    res.status(200).json({ message: 'Dispositivo registrato con successo' });
+  } catch (err) {
+    console.error('❌ Errore registrazione dispositivo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all registered devices (for debug)
+app.get('/api/devices', async (req, res) => {
+  try {
+    const rows = await dbAll('SELECT * FROM devices');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET active socket connections (for live debug)
+app.get('/api/socket/debug', (req, res) => {
+  try {
+    const sockets = [];
+    const allSockets = io.sockets.sockets;
+    for (const [id, socket] of allSockets.entries()) {
+      sockets.push({
+        id,
+        restaurantId: socket.restaurantId || null,
+        deviceType: socket.deviceType || 'unknown',
+        connected: socket.connected,
+        rooms: Array.from(socket.rooms).filter(r => r !== id)
+      });
+    }
+    
+    const serializedActiveDevices = {};
+    for (const restId of Object.keys(activeDevices)) {
+      serializedActiveDevices[restId] = {
+        merchant_pc: Array.from(activeDevices[restId].merchant_pc || []),
+        merchant_mobile: Array.from(activeDevices[restId].merchant_mobile || [])
+      };
+    }
+
+    res.json({
+      activeDevices: serializedActiveDevices,
+      sockets
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create a new lead (Lead Capture on demo trial)
+app.post('/api/leads', async (req, res) => {
+  try {
+    const { restaurant_name, name, email, phone } = req.body;
+    if (!restaurant_name || !name || !email) {
+      return res.status(400).json({ error: 'Nome locale, nome e email sono obbligatori' });
+    }
+    const id = 'lead-' + crypto.randomBytes(8).toString('hex');
+    await dbRun(`
+      INSERT INTO leads (id, restaurant_name, name, email, phone, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [id, restaurant_name, name, email, phone || '', Date.now()]);
+    
+    console.log(`💼 Nuovo Lead acquisito per la demo: "${restaurant_name}" da ${name} (${email})`);
+    res.status(201).json({ success: true, leadId: id });
+  } catch (err) {
+    console.error('❌ Errore durante il salvataggio del lead:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all leads (for super admin / debug)
+app.get('/api/leads', async (req, res) => {
+  try {
+    const rows = await dbAll('SELECT * FROM leads ORDER BY timestamp DESC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all restaurants (for tenant listing / debug)
+app.get('/api/restaurants', async (req, res) => {
+  try {
+    const rows = await dbAll('SELECT * FROM restaurants');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET restaurant info by ID or slug (Tenant Resolution)
+app.get('/api/restaurants/:idOrSlug', async (req, res) => {
+  try {
+    const { idOrSlug } = req.params;
+    if (idOrSlug === 'all') {
+      return res.json({
+        id: 'all',
+        name: 'Specchietto',
+        slug: 'all',
+        logo: '/icon.png',
+        primary_color: '#ff9000',
+        accent_color: '#4d5df1',
+        created_at: Date.now()
+      });
+    }
+    let row = await dbGet('SELECT * FROM restaurants WHERE id = ?', [idOrSlug]);
+    if (!row) {
+      row = await dbGet('SELECT * FROM restaurants WHERE slug = ?', [idOrSlug]);
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Ristorante non trovato' });
+    }
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST create new restaurant (SaaS Super Admin)
+app.post('/api/restaurants', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Accesso negato. Solo i super admin possono creare ristoranti.' });
+    }
+    const { name, slug, logo, primary_color, accent_color } = req.body;
+    if (!name || !slug) {
+      return res.status(400).json({ error: 'Nome e slug sono obbligatori' });
+    }
+    const id = 'rest-' + Math.random().toString(36).substr(2, 9);
+    const logoUrl = logo || '/icon.png';
+    const primary = primary_color || '#4d5df1';
+    const accent = accent_color || '#FF9000';
+    
+    // Insert restaurant
+    await dbRun(`
+      INSERT INTO restaurants (id, name, slug, logo, primary_color, accent_color, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [id, name, slug, logoUrl, primary, accent, Date.now()]);
+    
+    // Seed default settings for the new business
+    // TODO: aggiungere qui le impostazioni specifiche di Specchietto (orari operatori, servizi, ecc.)
+    // una volta disegnato il modello dati risorse/servizi/appuntamenti.
+    const defaultSettings = {
+      restaurant_name: name,
+      notification_email: "info@" + slug + ".it",
+      email_notifications_enabled: "true",
+      notification_phone: "",
+      auto_decline_minutes: "30",
+      reception_enabled: "true"
+    };
+
+    for (const [key, value] of Object.entries(defaultSettings)) {
+      await dbRun('INSERT INTO settings (restaurant_id, key, value) VALUES (?, ?, ?)', [id, key, value]);
+    }
+
+    // Seed default admin user for the new restaurant
+    const defaultUserEmail = `admin@${slug}.it`;
+    const defaultUserPassword = `${slug}123`;
+    const { salt, hash } = hashPassword(defaultUserPassword);
+    const userId = 'usr-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(`
+      INSERT INTO users (id, restaurant_id, email, password_hash, salt, role, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [userId, id, defaultUserEmail, hash, salt, 'merchant', Date.now()]);
+    console.log(`Default user created for new restaurant ${slug}: ${defaultUserEmail} / ${defaultUserPassword}`);
+    
+    const newRestaurant = {
+      id, name, slug, logo: logoUrl, primary_color: primary, accent_color: accent, active: 1, created_at: Date.now()
+    };
+    
+    // Emit event to all sockets that restaurants list has updated
+    io.emit('restaurantsUpdated', newRestaurant);
+
+    // Notify Super Admin of new tenant and credentials
+    sendSuperAdminRestaurantAlert(newRestaurant, defaultUserEmail, defaultUserPassword);
+    
+    res.json(newRestaurant);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT toggle restaurant active/inactive status (SaaS Super Admin)
+app.put('/api/restaurants/:id/status', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Accesso negato. Solo i super admin possono cambiare lo stato dei ristoranti.' });
+    }
+    const { id } = req.params;
+    const { active } = req.body;
+    
+    if (active === undefined) {
+      return res.status(400).json({ error: 'Il campo active è obbligatorio' });
+    }
+    
+    const activeVal = active ? 1 : 0;
+    
+    const rest = await dbGet('SELECT * FROM restaurants WHERE id = ?', [id]);
+    if (!rest) {
+      return res.status(404).json({ error: 'Ristorante non trovato' });
+    }
+    
+    await dbRun('UPDATE restaurants SET active = ? WHERE id = ?', [activeVal, id]);
+    
+    const updatedRestaurant = { ...rest, active: activeVal };
+    
+    // Emit updates to clients
+    io.emit('restaurantsUpdated', updatedRestaurant);
+    
+    res.json(updatedRestaurant);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE restaurant (SaaS Super Admin)
+app.delete('/api/restaurants/:id', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Accesso negato. Solo i super admin possono rimuovere ristoranti.' });
+    }
+    const { id } = req.params;
+    
+    const rest = await dbGet('SELECT * FROM restaurants WHERE id = ?', [id]);
+    if (!rest) {
+      return res.status(404).json({ error: 'Ristorante non trovato' });
+    }
+    
+    // Permanent cascading delete of the restaurant and all associated resources:
+    // 1. Settings
+    await dbRun('DELETE FROM settings WHERE restaurant_id = ?', [id]);
+    // 2. Devices
+    await dbRun('DELETE FROM devices WHERE restaurant_id = ?', [id]);
+    // 3. Customers (CRM)
+    await dbRun('DELETE FROM customers WHERE restaurant_id = ?', [id]);
+    // TODO: cancellare qui anche risorse/servizi/appuntamenti una volta definiti
+    // 4. Users
+    await dbRun('DELETE FROM users WHERE restaurant_id = ?', [id]);
+    // 5. Finally, delete the restaurant itself
+    await dbRun('DELETE FROM restaurants WHERE id = ?', [id]);
+    
+    // Emit delete notification to connected sockets
+    io.emit('restaurantDeleted', { id });
+    
+    res.json({ success: true, message: `Ristorante ${id} e tutti i dati collegati sono stati eliminati.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all settings for a specific restaurant
+app.get('/api/settings', async (req, res) => {
+  try {
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    const rows = await dbAll('SELECT * FROM settings WHERE restaurant_id = ?', [restaurantId]);
+    const settingsObj = {};
+    rows.forEach(r => {
+      settingsObj[r.key] = r.value;
+    });
+
+    res.json(settingsObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// TODO: qui andrà il motore di disponibilità per risorse/operatori a durata variabile,
+// una volta disegnato il modello dati di Specchietto (vedi discussione su resources/services/appointments).
+
+// POST save/update settings
+app.post('/api/settings', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, ...settings } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+    const targetRestaurantId = restaurant_id || 'rest-1';
+    
+    for (const [key, value] of Object.entries(settings)) {
+      await dbRun('INSERT OR REPLACE INTO settings (restaurant_id, key, value) VALUES (?, ?, ?)', [targetRestaurantId, key, String(value)]);
+    }
+    
+    // Retrieve updated settings and emit to all sockets in this restaurant's room
+    const rows = await dbAll('SELECT * FROM settings WHERE restaurant_id = ?', [targetRestaurantId]);
+    const settingsObj = {};
+    rows.forEach(r => {
+      settingsObj[r.key] = r.value;
+    });
+    io.to(targetRestaurantId).emit('settingsUpdated', settingsObj);
+    
+    // Immediately emit device status updates to verify reception_enabled toggles
+    await emitDeviceStatus(targetRestaurantId);
+    
+    console.log(`⚙️ Impostazioni aggiornate per il ristorante ${targetRestaurantId}.`);
+    res.json(settingsObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CRM Customer endpoints
+app.get('/api/customers', requireAuth, async (req, res) => {
+  try {
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    if (!checkScope(req, res, restaurantId)) return;
+    const rows = await dbAll('SELECT * FROM customers WHERE restaurant_id = ? ORDER BY name ASC', [restaurantId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/customers/:phone', requireAuth, async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    if (!checkScope(req, res, restaurantId)) return;
+    const row = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone, restaurantId]);
+    if (!row) {
+      return res.status(404).json({ error: 'Cliente non trovato' });
+    }
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/customers', requireAuth, async (req, res) => {
+  try {
+    const { phone, restaurant_id, name, email, notes, no_show_count, blocked } = req.body;
+    const targetRestaurantId = restaurant_id || 'rest-1';
+    if (!checkScope(req, res, targetRestaurantId)) return;
+
+    if (!phone || !name) {
+      return res.status(400).json({ error: 'Telefono e Nome sono obbligatori' });
+    }
+
+    await dbRun(`
+      INSERT OR REPLACE INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM customers WHERE phone = ? AND restaurant_id = ?), ?))
+    `, [
+      phone.trim(), targetRestaurantId, name.trim(), (email || '').trim(), notes || '', 
+      no_show_count || 0, blocked || 0, phone.trim(), targetRestaurantId, Date.now()
+    ]);
+
+    const row = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone.trim(), targetRestaurantId]);
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/customers/import', requireAuth, async (req, res) => {
+  try {
+    const { customers, restaurant_id } = req.body;
+    const targetRestaurantId = restaurant_id || 'rest-1';
+    if (!checkScope(req, res, targetRestaurantId)) return;
+    
+    if (!Array.isArray(customers)) {
+      return res.status(400).json({ error: 'Body must contain an array of customers' });
+    }
+
+    let importedCount = 0;
+    
+    // Process sequentially to reuse dbRun easily (could use a transaction for speed, but this is safer and simpler for SQLite)
+    for (const cust of customers) {
+      const phone = (cust.phone || '').toString().trim();
+      const name = (cust.name || '').toString().trim();
+      if (!phone || !name) continue; // Skip invalid records
+      
+      const email = (cust.email || '').toString().trim();
+      const notes = (cust.notes || '').toString().trim();
+      
+      await dbRun(`
+        INSERT OR REPLACE INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, created_at)
+        VALUES (?, ?, ?, ?, ?, COALESCE((SELECT no_show_count FROM customers WHERE phone = ? AND restaurant_id = ?), 0), COALESCE((SELECT blocked FROM customers WHERE phone = ? AND restaurant_id = ?), 0), COALESCE((SELECT created_at FROM customers WHERE phone = ? AND restaurant_id = ?), ?))
+      `, [
+        phone, targetRestaurantId, name, email, notes, 
+        phone, targetRestaurantId, phone, targetRestaurantId, phone, targetRestaurantId, Date.now()
+      ]);
+      importedCount++;
+    }
+
+    res.json({ success: true, importedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/customers/:phone', requireAuth, async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    if (!checkScope(req, res, restaurantId)) return;
+    await dbRun('DELETE FROM customers WHERE phone = ? AND restaurant_id = ?', [phone, restaurantId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all surveys for a restaurant
+app.get('/api/restaurants/:id/surveys', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!checkScope(req, res, id)) return;
+
+    const rows = await dbAll('SELECT * FROM surveys WHERE restaurant_id = ? ORDER BY created_at DESC', [id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT resolve/archive callback request
+app.put('/api/surveys/:id/resolve', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const survey = await dbGet('SELECT restaurant_id FROM surveys WHERE id = ?', [id]);
+    if (!survey) {
+      return res.status(404).json({ error: 'Feedback non trovato' });
+    }
+    if (!checkScope(req, res, survey.restaurant_id)) return;
+
+    await dbRun('UPDATE surveys SET resolved = 1 WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Richiesta di callback segnata come risolta' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Set up server and socket.io connection
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
+// Track active connections per restaurant
+// Structure: { [restaurantId]: { merchant_pc: Set(socket.id), merchant_mobile: Set(socket.id) } }
+const activeDevices = {};
+
+const emitDeviceStatus = async (restaurantId) => {
+  if (!restaurantId) return;
+
+  // Retrieve reception_enabled setting from SQLite database
+  let receptionEnabled = true;
+  try {
+    const row = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'reception_enabled'", [restaurantId]);
+    if (row && row.value === 'false') {
+      receptionEnabled = false;
+    }
+  } catch (err) {
+    console.error("Errore nel recupero dell'impostazione reception_enabled:", err);
+  }
+
+  const pcConnected = !!(activeDevices[restaurantId]?.merchant_pc?.size > 0);
+  const mobileConnected = !!(activeDevices[restaurantId]?.merchant_mobile?.size > 0);
+  
+  io.to(restaurantId).emit('deviceStatus', {
+    pcConnected,
+    mobileConnected
+  });
+  console.log(`📡 Emesso deviceStatus per ${restaurantId}: PC=${pcConnected}, Mobile=${mobileConnected} (receptionEnabled=${receptionEnabled})`);
+};
+
+io.on('connection', (socket) => {
+  console.log(`Un client si è connesso: ${socket.id}`);
+  
+  socket.on('join_restaurant', async (data) => {
+    let restaurantId;
+    let deviceType = 'customer';
+    
+    if (data && typeof data === 'object') {
+      restaurantId = data.restaurantId;
+      deviceType = data.deviceType || 'customer';
+    } else {
+      restaurantId = data;
+    }
+    
+    if (!restaurantId) return;
+
+    const oldRestaurantId = socket.restaurantId;
+    
+    socket.join(restaurantId);
+    socket.restaurantId = restaurantId;
+    socket.deviceType = deviceType;
+
+    // Clean up socket from any previous activeDevices registrations
+    for (const rId of Object.keys(activeDevices)) {
+      if (activeDevices[rId].merchant_pc) {
+        activeDevices[rId].merchant_pc.delete(socket.id);
+      }
+      if (activeDevices[rId].merchant_mobile) {
+        activeDevices[rId].merchant_mobile.delete(socket.id);
+      }
+      if (activeDevices[rId].merchant_pc?.size === 0 && activeDevices[rId].merchant_mobile?.size === 0) {
+        delete activeDevices[rId];
+      }
+    }
+    
+    if (deviceType === 'merchant_pc' || deviceType === 'merchant_mobile') {
+      if (!activeDevices[restaurantId]) {
+        activeDevices[restaurantId] = {
+          merchant_pc: new Set(),
+          merchant_mobile: new Set()
+        };
+      }
+      activeDevices[restaurantId][deviceType].add(socket.id);
+    }
+    
+    console.log(`Socket ${socket.id} iscritto alla stanza del ristorante: ${restaurantId} come ${deviceType}`);
+    
+    if (activeDevices[restaurantId]) {
+      console.log(`[Socket Debug] Dispositivi attivi per ${restaurantId}:`, {
+        merchant_pc: Array.from(activeDevices[restaurantId].merchant_pc || []),
+        merchant_mobile: Array.from(activeDevices[restaurantId].merchant_mobile || [])
+      });
+    }
+    
+    // Invia lo stato aggiornato a tutta la stanza
+    await emitDeviceStatus(restaurantId);
+
+    // Se il socket ha cambiato ristorante, aggiorna lo stato anche per il vecchio ristorante
+    if (oldRestaurantId && oldRestaurantId !== restaurantId) {
+      await emitDeviceStatus(oldRestaurantId);
+    }
+  });
+
+  socket.on('disconnect', async () => {
+    console.log(`Client disconnesso: ${socket.id}`);
+    const { restaurantId, deviceType } = socket;
+    if (restaurantId && (deviceType === 'merchant_pc' || deviceType === 'merchant_mobile')) {
+      if (activeDevices[restaurantId] && activeDevices[restaurantId][deviceType]) {
+        activeDevices[restaurantId][deviceType].delete(socket.id);
+        
+        // Pulisce l'oggetto se non ci sono più dispositivi connessi
+        if (activeDevices[restaurantId].merchant_pc.size === 0 && activeDevices[restaurantId].merchant_mobile.size === 0) {
+          delete activeDevices[restaurantId];
+        }
+        
+        await emitDeviceStatus(restaurantId);
+      }
+    }
+  });
+});
+
+
+// Background Worker to automatically send follow-up public review requests to happy customers
+const checkAndSendFollowUpReviews = async () => {
+  try {
+    const now = Date.now();
+    
+    // Fetch surveys that haven't had follow-up review email sent yet
+    const surveys = await dbAll(`
+      SELECT * FROM surveys 
+      WHERE review_email_sent = 0
+    `);
+
+    for (const s of surveys) {
+      const restId = s.restaurant_id || 'rest-1';
+      
+      // Load settings for this restaurant
+      const delaySetting = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'review_funnel_delay'", [restId]);
+      const minRatingSetting = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'review_funnel_min_rating'", [restId]);
+      
+      const delayHours = delaySetting ? parseFloat(delaySetting.value) : 4; // Defaults to 4 hours if not set
+      const minRating = minRatingSetting ? parseFloat(minRatingSetting.value) : 4.0; // Defaults to 4.0
+
+      // If rating is below the merchant's configured threshold, mark as review_email_sent = 1 and skip
+      if (s.average_rating < minRating) {
+        await dbRun("UPDATE surveys SET review_email_sent = 1 WHERE id = ?", [s.id]);
+        continue;
+      }
+
+      // Convert hours to ms. If delayHours is 0, we can use 4 hours as default.
+      // If it is non-zero, we use it directly (e.g. 0.01 hours is 36 seconds, very good for testing).
+      const finalDelayHours = delayHours <= 0 ? 4 : delayHours;
+      const delayMs = finalDelayHours * 60 * 60 * 1000;
+      
+      if (now - s.created_at >= delayMs) {
+        console.log(`[Review Funnel] Sending follow-up review email for survey: ${s.id} (Delay: ${finalDelayHours}h, elapsed: ${((now - s.created_at) / 3600000).toFixed(2)}h)`);
+        await sendFollowUpReviewEmail(s);
+        await dbRun("UPDATE surveys SET review_email_sent = 1 WHERE id = ?", [s.id]);
+      }
+    }
+  } catch (err) {
+    console.error("Errore nel worker checkAndSendFollowUpReviews:", err);
+  }
+};
+
+// Start checking every 60 seconds
+setInterval(checkAndSendFollowUpReviews, 60000);
+checkAndSendFollowUpReviews();
+
+// Start the server
+server.listen(PORT, () => {
+  console.log(`Backend server in esecuzione sulla porta ${PORT}`);
+});

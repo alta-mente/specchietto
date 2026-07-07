@@ -1,0 +1,82 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Display" subtitle="Card, Badge, Tag, Avatar & StatTile" -->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;padding:26px 28px;background:var(--surface-card);font-family:var(--font-sans)}
+  .sec{margin-bottom:20px}
+  .sec h4{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin:0 0 11px;font-weight:700}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<script type="text/babel">
+const { Card, Badge, Tag, Avatar, StatTile, Icon } = window.FicodindiaDesignSystem_613bb9;
+const ic = (n, s) => <Icon name={n} size={s || 18} />;
+function Demo() {
+  return (
+    <div>
+      <div className="sec"><h4>StatTile</h4>
+        <div className="grid4">
+          <StatTile label="Coperti oggi" value="142" tone="green" icon={ic('users',20)} delta={{value:'12%',direction:'up'}} />
+          <StatTile label="Prenotazioni" value="38" tone="orange" icon={ic('calendar-days',20)} delta={{value:'4%',direction:'up'}} />
+          <StatTile label="No-show" value="3" tone="red" icon={ic('user-round-x',20)} delta={{value:'1',direction:'down'}} />
+          <StatTile label="Occupazione" value="86%" tone="lavender" icon={ic('armchair',20)} hint="sala interna" />
+        </div>
+      </div>
+      <div className="sec"><h4>Badge · stati prenotazione</h4>
+        <div className="row">
+          <Badge tone="confirmed" dot>Confermata</Badge>
+          <Badge tone="pending" dot>In attesa</Badge>
+          <Badge tone="seated" dot>Al tavolo</Badge>
+          <Badge tone="vip" dot>Ospite VIP</Badge>
+          <Badge tone="cancelled" dot>Annullata</Badge>
+          <Badge tone="info" dot>Nota</Badge>
+        </div>
+      </div>
+      <div className="sec"><h4>Tag · etichette ospite</h4>
+        <div className="row">
+          <Tag color="lavender" dot>VIP</Tag>
+          <Tag color="red" iconLeft={ic('wine',14)}>Allergia: frutta secca</Tag>
+          <Tag color="orange" iconLeft={ic('gift',14)}>Compleanno</Tag>
+          <Tag color="green" onRemove={()=>{}}>Cliente abituale</Tag>
+          <Tag color="neutral">Tavolo finestra</Tag>
+        </div>
+      </div>
+      <div className="sec"><h4>Avatar</h4>
+        <div className="row">
+          <Avatar name="Giulia Rossi" size="sm" />
+          <Avatar name="Marco Bianchi" size="md" />
+          <Avatar name="Elena Conti" size="lg" ring />
+          <Avatar name="Paolo Verdi" size="xl" />
+          <Avatar name="Sara Neri" size="md" shape="rounded" />
+        </div>
+      </div>
+      <div className="sec" style={{marginBottom:0}}><h4>Card</h4>
+        <div className="row">
+          <Card interactive padding="md" style={{width:230}}>
+            <b style={{fontFamily:'var(--font-display)'}}>Tavolo 12</b>
+            <div style={{color:'var(--ink-500)',fontSize:13,marginTop:4}}>4 coperti · finestra</div>
+          </Card>
+          <Card elevation="lg" padding="md" style={{width:230}}>
+            <b style={{fontFamily:'var(--font-display)'}}>Elevazione lg</b>
+            <div style={{color:'var(--ink-500)',fontSize:13,marginTop:4}}>superficie sollevata</div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

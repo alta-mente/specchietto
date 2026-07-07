@@ -1,0 +1,51 @@
+<!-- @dsCard group="Components" viewport="700x240" name="Navigation" subtitle="Tabs & SegmentedControl (interactive)" -->
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  body{margin:0;padding:26px 28px;background:var(--surface-card);font-family:var(--font-sans)}
+  .stack{display:flex;flex-direction:column;gap:22px}
+  .lbl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<script type="text/babel">
+const { Tabs, SegmentedControl, Icon } = window.FicodindiaDesignSystem_613bb9;
+const ic = (n) => <Icon name={n} size={16} />;
+function Demo() {
+  const [tab, setTab] = React.useState('oggi');
+  const [view, setView] = React.useState('sala');
+  return (
+    <div className="stack">
+      <div>
+        <div className="lbl">Tabs</div>
+        <Tabs value={tab} onChange={setTab} tabs={[
+          {id:'oggi',label:'Oggi',count:38},
+          {id:'settimana',label:'Settimana',count:204},
+          {id:'ospiti',label:'Ospiti',icon:ic('users')},
+          {id:'note',label:'Note'},
+        ]} />
+      </div>
+      <div>
+        <div className="lbl">SegmentedControl</div>
+        <SegmentedControl value={view} onChange={setView} options={[
+          {value:'sala',label:'Sala',icon:ic('layout-grid')},
+          {value:'lista',label:'Lista',icon:ic('list')},
+          {value:'timeline',label:'Timeline',icon:ic('clock')},
+        ]} />
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>
