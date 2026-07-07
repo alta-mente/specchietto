@@ -4,8 +4,8 @@ import { ServicesTab } from './ServicesTab';
 import { AgendaTab } from './AgendaTab';
 
 const TABS = [
-  { id: 'agenda', label: 'Agenda' },
-  { id: 'resources', label: 'Operatori' },
+  { id: 'agenda', label: 'Calendario' },
+  { id: 'resources', label: 'Team' },
   { id: 'services', label: 'Servizi' }
 ];
 

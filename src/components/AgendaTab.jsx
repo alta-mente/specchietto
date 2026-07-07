@@ -16,11 +16,20 @@ const PX_PER_MIN = 1.5;
 const SNAP_MINUTES = 15;
 const DEFAULT_START = 9 * 60;
 const DEFAULT_END = 19 * 60;
+const WEEKDAY_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+const MONTH_NAMES = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
 const todayIso = () => {
   const d = new Date();
   const offset = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - offset).toISOString().split('T')[0];
+};
+
+const dateToIso = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 };
 
 const parseTimeToMinutes = (t) => {
@@ -37,19 +46,94 @@ const formatFriendlyDate = (dateStr) => {
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   const [year, month, day] = parts.map(Number);
-  const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
   const DAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
   const d = new Date(year, month - 1, day);
-  return `${DAYS[d.getDay()]} ${day} ${MONTHS[month - 1]} ${year}`;
+  return `${DAYS[d.getDay()]} ${day} ${MONTH_NAMES[month - 1]} ${year}`;
 };
 
 const shiftDate = (dateStr, deltaDays) => {
   const d = new Date(`${dateStr}T12:00:00`);
   d.setDate(d.getDate() + deltaDays);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return dateToIso(d);
+};
+
+const getWeekDates = (dateStr) => {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const day = d.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + mondayOffset);
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const dd = new Date(monday);
+    dd.setDate(monday.getDate() + i);
+    dates.push(dateToIso(dd));
+  }
+  return dates;
+};
+
+const getDaysInMonth = (viewMonth) => {
+  const year = viewMonth.getFullYear();
+  const month = viewMonth.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let startDayOfWeek = firstDay.getDay() - 1;
+  if (startDayOfWeek < 0) startDayOfWeek = 6;
+  const days = [];
+  for (let i = 0; i < startDayOfWeek; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+  return days;
+};
+
+const MiniCalendar = ({ selectedDate, onSelectDate }) => {
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date(`${selectedDate}T12:00:00`);
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
+  const days = useMemo(() => getDaysInMonth(viewMonth), [viewMonth]);
+  const todayStr = todayIso();
+
+  return (
+    <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <button
+          onClick={() => setViewMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#64748b' }}
+        >‹</button>
+        <strong style={{ fontSize: '0.85rem', textTransform: 'capitalize' }}>{MONTH_NAMES[viewMonth.getMonth()]} {viewMonth.getFullYear()}</strong>
+        <button
+          onClick={() => setViewMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#64748b' }}
+        >›</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', textAlign: 'center', fontSize: '0.68rem', color: '#94a3b8', marginBottom: '4px' }}>
+        {['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((d, i) => <span key={i}>{d}</span>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+        {days.map((d, idx) => {
+          if (!d) return <div key={`e${idx}`} />;
+          const iso = dateToIso(d);
+          const isSelected = iso === selectedDate;
+          const isToday = iso === todayStr;
+          return (
+            <button
+              key={iso}
+              onClick={() => onSelectDate(iso)}
+              style={{
+                padding: '6px 0', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.78rem',
+                backgroundColor: isSelected ? '#0f172a' : 'transparent',
+                color: isSelected ? '#fff' : isToday ? '#FF5C82' : '#334155',
+                fontWeight: isSelected || isToday ? '700' : '500'
+              }}
+            >
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
 
 const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
@@ -115,9 +199,10 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
   );
 };
 
-const NewAppointmentModal = ({ draft, sync, date, onClose }) => {
+const NewAppointmentModal = ({ draft, sync, onClose }) => {
   const [resourceId, setResourceId] = useState(draft.resourceId || sync.resources[0]?.id || '');
   const [serviceId, setServiceId] = useState(sync.services[0]?.id || '');
+  const [date, setDate] = useState(draft.date);
   const [time, setTime] = useState(draft.time || '');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -149,7 +234,6 @@ const NewAppointmentModal = ({ draft, sync, date, onClose }) => {
         boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px'
       }}>
         <div style={{ fontSize: '1.05rem', fontWeight: '700', marginBottom: '4px' }}>Nuovo appuntamento</div>
-        <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '4px' }}>{formatFriendlyDate(date)}</div>
 
         <select value={resourceId} onChange={(e) => setResourceId(e.target.value)} style={inputStyle}>
           {sync.resources.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -157,6 +241,7 @@ const NewAppointmentModal = ({ draft, sync, date, onClose }) => {
         <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} style={inputStyle}>
           {sync.services.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min)</option>)}
         </select>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={inputStyle} />
         <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required style={inputStyle} />
         <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome cliente" required style={inputStyle} />
         <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono" style={inputStyle} />
@@ -172,7 +257,9 @@ const NewAppointmentModal = ({ draft, sync, date, onClose }) => {
 };
 
 export const AgendaTab = ({ sync }) => {
+  const [viewMode, setViewMode] = useState('day'); // 'day' | 'week'
   const [date, setDate] = useState(todayIso());
+  const [selectedOperatorId, setSelectedOperatorId] = useState(''); // '' = tutti (solo vista settimana)
   const [resourceHours, setResourceHours] = useState({});
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [newApptDraft, setNewApptDraft] = useState(null);
@@ -195,26 +282,66 @@ export const AgendaTab = ({ sync }) => {
     })();
   }, [sync.resources, sync.backendUrl]);
 
-  const dayOfWeek = useMemo(() => new Date(`${date}T12:00:00`).getDay(), [date]);
+  const getRangeForDay = (resourceIds, dow) => {
+    let ranges = [];
+    resourceIds.forEach(rid => {
+      const hours = (resourceHours[rid] || []).filter(h => h.day_of_week === dow);
+      if (hours.length > 0) {
+        ranges.push({
+          open: Math.min(...hours.map(h => parseTimeToMinutes(h.open_time))),
+          close: Math.max(...hours.map(h => parseTimeToMinutes(h.close_time)))
+        });
+      }
+    });
+    if (ranges.length === 0) return null;
+    return { open: Math.min(...ranges.map(r => r.open)), close: Math.max(...ranges.map(r => r.close)) };
+  };
 
-  const resourceRanges = useMemo(() => {
-    const ranges = {};
-    sync.resources.forEach(r => {
-      const hours = (resourceHours[r.id] || []).filter(h => h.day_of_week === dayOfWeek);
-      ranges[r.id] = hours.length === 0 ? null : {
-        open: Math.min(...hours.map(h => parseTimeToMinutes(h.open_time))),
-        close: Math.max(...hours.map(h => parseTimeToMinutes(h.close_time)))
+  const columns = useMemo(() => {
+    if (viewMode === 'day') {
+      const dow = new Date(`${date}T12:00:00`).getDay();
+      return sync.resources.map((r, idx) => {
+        const appts = sync.appointments.filter(a => a.resource_id === r.id && a.date === date);
+        return {
+          key: r.id,
+          date,
+          avatarColor: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+          avatarLabel: initials(r.name),
+          headerMain: r.name,
+          headerSub: `${appts.filter(a => !CLOSED_LIKE.includes(a.status)).length} appuntamenti`,
+          range: getRangeForDay([r.id], dow),
+          appointments: appts,
+          defaultResourceId: r.id
+        };
+      });
+    }
+
+    // Vista settimana: colonne = giorni, filtrate per operatore (o tutti)
+    const operators = selectedOperatorId ? sync.resources.filter(r => r.id === selectedOperatorId) : sync.resources;
+    const operatorIds = operators.map(r => r.id);
+    return getWeekDates(date).map((d, idx) => {
+      const dow = new Date(`${d}T12:00:00`).getDay();
+      const appts = sync.appointments.filter(a => operatorIds.includes(a.resource_id) && a.date === d);
+      return {
+        key: d,
+        date: d,
+        avatarColor: null,
+        avatarLabel: null,
+        headerMain: `${WEEKDAY_SHORT[dow]} ${d.split('-')[2]}`,
+        headerSub: d === todayIso() ? 'Oggi' : '',
+        range: getRangeForDay(operatorIds, dow),
+        appointments: appts,
+        defaultResourceId: operators[0]?.id || ''
       };
     });
-    return ranges;
-  }, [sync.resources, resourceHours, dayOfWeek]);
+  }, [viewMode, date, selectedOperatorId, sync.resources, sync.appointments, resourceHours]);
 
   const { axisStart, axisEnd } = useMemo(() => {
-    const opens = Object.values(resourceRanges).filter(Boolean).map(r => r.open);
-    const closes = Object.values(resourceRanges).filter(Boolean).map(r => r.close);
+    const opens = columns.map(c => c.range).filter(Boolean).map(r => r.open);
+    const closes = columns.map(c => c.range).filter(Boolean).map(r => r.close);
     if (opens.length === 0) return { axisStart: DEFAULT_START, axisEnd: DEFAULT_END };
     return { axisStart: Math.min(...opens), axisEnd: Math.max(...closes) };
-  }, [resourceRanges]);
+  }, [columns]);
 
   const timelineHeight = (axisEnd - axisStart) * PX_PER_MIN;
 
@@ -225,148 +352,177 @@ export const AgendaTab = ({ sync }) => {
     return marks;
   }, [axisStart, axisEnd]);
 
-  const appointmentsByResource = useMemo(() => {
-    const map = {};
-    sync.resources.forEach(r => { map[r.id] = []; });
-    sync.appointments.filter(a => a.date === date).forEach(a => {
-      if (!map[a.resource_id]) map[a.resource_id] = [];
-      map[a.resource_id].push(a);
-    });
-    return map;
-  }, [sync.appointments, sync.resources, date]);
-
-  const isToday = date === todayIso();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  const handleColumnClick = (resourceId, e) => {
+  const handleColumnClick = (column, e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     let minutes = axisStart + (e.clientY - rect.top) / PX_PER_MIN;
     minutes = Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
     minutes = Math.max(axisStart, Math.min(axisEnd - SNAP_MINUTES, minutes));
-    setNewApptDraft({ resourceId, time: formatMinutesToTime(minutes) });
+    setNewApptDraft({ resourceId: column.defaultResourceId, date: column.date, time: formatMinutesToTime(minutes) });
   };
 
+  const headerRangeLabel = viewMode === 'day'
+    ? formatFriendlyDate(date)
+    : (() => {
+        const dates = getWeekDates(date);
+        const first = dates[0].split('-'), last = dates[6].split('-');
+        return `${first[2]} ${MONTH_NAMES[parseInt(first[1], 10) - 1].slice(0, 3)} – ${last[2]} ${MONTH_NAMES[parseInt(last[1], 10) - 1].slice(0, 3)} ${last[0]}`;
+      })();
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button onClick={() => setDate(d => shiftDate(d, -1))} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>←</button>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-          <button onClick={() => setDate(d => shiftDate(d, 1))} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>→</button>
-          {!isToday && (
-            <button onClick={() => setDate(todayIso())} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}>Oggi</button>
-          )}
-          <strong style={{ marginLeft: '4px', fontSize: '0.95rem' }}>{formatFriendlyDate(date)}</strong>
-        </div>
-        <button
-          onClick={() => setNewApptDraft({ resourceId: sync.resources[0]?.id || '', time: formatMinutesToTime(axisStart) })}
-          disabled={sync.resources.length === 0 || sync.services.length === 0}
-          style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
-        >
-          + Nuovo appuntamento
-        </button>
-      </div>
+    <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+      <aside style={{ width: '240px', flexShrink: 0 }} className="agenda-sidebar">
+        <MiniCalendar selectedDate={date} onSelectDate={setDate} />
+      </aside>
 
-      {sync.resources.length === 0 ? (
-        <p style={{ color: '#94a3b8' }}>Aggiungi prima un operatore nella tab "Operatori".</p>
-      ) : (
-        <div style={{ display: 'flex', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto', display: 'flex', width: '100%' }}>
-            <div style={{ width: '52px', flexShrink: 0, borderRight: '1px solid #f1f5f9' }}>
-              <div style={{ height: '58px', borderBottom: '2px solid #e2e8f0' }} />
-              <div style={{ position: 'relative', height: timelineHeight }}>
-                {hourMarks.map(m => (
-                  <div key={m} style={{ position: 'absolute', top: (m - axisStart) * PX_PER_MIN - 7, right: '8px', fontSize: '0.7rem', color: '#94a3b8' }}>
-                    {formatMinutesToTime(m)}
-                  </div>
-                ))}
-              </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={() => setDate(d => shiftDate(d, viewMode === 'week' ? -7 : -1))} style={navBtnStyle}>←</button>
+            <button onClick={() => setDate(d => shiftDate(d, viewMode === 'week' ? 7 : 1))} style={navBtnStyle}>→</button>
+            {date !== todayIso() && (
+              <button onClick={() => setDate(todayIso())} style={{ ...navBtnStyle, fontSize: '0.8rem' }}>Oggi</button>
+            )}
+            <strong style={{ marginLeft: '4px', fontSize: '0.95rem' }}>{headerRangeLabel}</strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+              <button
+                onClick={() => setViewMode('day')}
+                style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: '600', backgroundColor: viewMode === 'day' ? '#0f172a' : '#fff', color: viewMode === 'day' ? '#fff' : '#334155' }}
+              >Giorno</button>
+              <button
+                onClick={() => setViewMode('week')}
+                style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: '0.82rem', fontWeight: '600', backgroundColor: viewMode === 'week' ? '#0f172a' : '#fff', color: viewMode === 'week' ? '#fff' : '#334155' }}
+              >Settimana</button>
             </div>
-
-            {sync.resources.map((r, idx) => {
-              const range = resourceRanges[r.id];
-              const dayAppts = (appointmentsByResource[r.id] || []).filter(a => !CLOSED_LIKE.includes(a.status));
-              return (
-                <div key={r.id} style={{ minWidth: '210px', flex: 1, borderRight: idx < sync.resources.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                  <div style={{
-                    height: '58px', display: 'flex', alignItems: 'center', gap: '10px', padding: '0 14px',
-                    borderBottom: '2px solid #e2e8f0'
-                  }}>
-                    <div style={{
-                      width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
-                      backgroundColor: AVATAR_COLORS[idx % AVATAR_COLORS.length], color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700'
-                    }}>
-                      {initials(r.name)}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{r.name}</div>
-                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{dayAppts.length} appuntament{dayAppts.length === 1 ? 'o' : 'i'}</div>
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={(e) => handleColumnClick(r.id, e)}
-                    style={{
-                      position: 'relative', height: timelineHeight, cursor: 'pointer',
-                      backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_MIN * 60 - 1}px, #f8fafc ${PX_PER_MIN * 60 - 1}px, #f8fafc ${PX_PER_MIN * 60}px)`
-                    }}
-                  >
-                    {!range && (
-                      <div style={{
-                        position: 'absolute', inset: 0, backgroundColor: '#f8fafc',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#cbd5e1', fontSize: '0.8rem', fontWeight: '600'
-                      }}>
-                        Chiuso
-                      </div>
-                    )}
-                    {range && range.open > axisStart && (
-                      <div style={{ position: 'absolute', top: 0, height: (range.open - axisStart) * PX_PER_MIN, left: 0, right: 0, backgroundColor: 'rgba(148,163,184,0.08)' }} />
-                    )}
-                    {range && range.close < axisEnd && (
-                      <div style={{ position: 'absolute', top: (range.close - axisStart) * PX_PER_MIN, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(148,163,184,0.08)' }} />
-                    )}
-
-                    {isToday && nowMinutes >= axisStart && nowMinutes <= axisEnd && (
-                      <div style={{ position: 'absolute', top: (nowMinutes - axisStart) * PX_PER_MIN, left: 0, right: 0, height: '2px', backgroundColor: '#ef4444', zIndex: 3 }}>
-                        <div style={{ position: 'absolute', left: '-3px', top: '-3px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                      </div>
-                    )}
-
-                    {(appointmentsByResource[r.id] || []).map(a => {
-                      const startMin = parseTimeToMinutes(a.time);
-                      const meta = STATUS_META[a.status] || STATUS_META.pending;
-                      const isClosedLike = CLOSED_LIKE.includes(a.status) || a.status === 'noshow';
-                      return (
-                        <div
-                          key={a.id}
-                          onClick={(e) => { e.stopPropagation(); setSelectedAppt(a); }}
-                          style={{
-                            position: 'absolute',
-                            top: (startMin - axisStart) * PX_PER_MIN,
-                            height: Math.max(22, (a.duration_minutes || 30) * PX_PER_MIN - 2),
-                            left: 4, right: 4,
-                            backgroundColor: meta.bg, borderLeft: `3px solid ${meta.border}`, borderRadius: '6px',
-                            padding: '3px 8px', cursor: 'pointer', overflow: 'hidden',
-                            opacity: isClosedLike ? 0.55 : 1, zIndex: 2,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
-                          }}
-                        >
-                          <div style={{ fontSize: '0.72rem', fontWeight: '700', color: meta.text, whiteSpace: 'nowrap', textDecoration: isClosedLike ? 'line-through' : 'none' }}>
-                            {a.time} · {a.customer_name}
-                          </div>
-                          <div style={{ fontSize: '0.66rem', color: meta.text, opacity: 0.85, whiteSpace: 'nowrap' }}>{a.service_name}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+            <button
+              onClick={() => setNewApptDraft({ resourceId: sync.resources[0]?.id || '', date, time: formatMinutesToTime(axisStart) })}
+              disabled={sync.resources.length === 0 || sync.services.length === 0}
+              style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', backgroundColor: '#FF5C82', color: '#fff', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
+            >
+              + Nuovo appuntamento
+            </button>
           </div>
         </div>
-      )}
+
+        {viewMode === 'week' && (
+          <div style={{ marginBottom: '14px' }}>
+            <select
+              value={selectedOperatorId}
+              onChange={(e) => setSelectedOperatorId(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+            >
+              <option value="">Tutti i collaboratori</option>
+              {sync.resources.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+        )}
+
+        {sync.resources.length === 0 ? (
+          <p style={{ color: '#94a3b8' }}>Aggiungi prima un operatore nella tab "Team".</p>
+        ) : (
+          <div style={{ display: 'flex', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto', display: 'flex', width: '100%' }}>
+              <div style={{ width: '52px', flexShrink: 0, borderRight: '1px solid #f1f5f9' }}>
+                <div style={{ height: '58px', borderBottom: '2px solid #e2e8f0' }} />
+                <div style={{ position: 'relative', height: timelineHeight }}>
+                  {hourMarks.map(m => (
+                    <div key={m} style={{ position: 'absolute', top: (m - axisStart) * PX_PER_MIN - 7, right: '8px', fontSize: '0.7rem', color: '#94a3b8' }}>
+                      {formatMinutesToTime(m)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {columns.map((col, idx) => {
+                const isToday = col.date === todayIso();
+                return (
+                  <div key={col.key} style={{ minWidth: '190px', flex: 1, borderRight: idx < columns.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <div style={{
+                      height: '58px', display: 'flex', alignItems: 'center', gap: '10px', padding: '0 14px',
+                      borderBottom: '2px solid #e2e8f0'
+                    }}>
+                      {col.avatarColor && (
+                        <div style={{
+                          width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
+                          backgroundColor: col.avatarColor, color: '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700'
+                        }}>
+                          {col.avatarLabel}
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '0.88rem', color: viewMode === 'week' && isToday ? '#FF5C82' : 'inherit' }}>{col.headerMain}</div>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{col.headerSub}</div>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={(e) => handleColumnClick(col, e)}
+                      style={{
+                        position: 'relative', height: timelineHeight, cursor: 'pointer',
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${PX_PER_MIN * 60 - 1}px, #f8fafc ${PX_PER_MIN * 60 - 1}px, #f8fafc ${PX_PER_MIN * 60}px)`
+                      }}
+                    >
+                      {!col.range && (
+                        <div style={{
+                          position: 'absolute', inset: 0, backgroundColor: '#f8fafc',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: '#cbd5e1', fontSize: '0.8rem', fontWeight: '600'
+                        }}>
+                          Chiuso
+                        </div>
+                      )}
+                      {col.range && col.range.open > axisStart && (
+                        <div style={{ position: 'absolute', top: 0, height: (col.range.open - axisStart) * PX_PER_MIN, left: 0, right: 0, backgroundColor: 'rgba(148,163,184,0.08)' }} />
+                      )}
+                      {col.range && col.range.close < axisEnd && (
+                        <div style={{ position: 'absolute', top: (col.range.close - axisStart) * PX_PER_MIN, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(148,163,184,0.08)' }} />
+                      )}
+
+                      {isToday && nowMinutes >= axisStart && nowMinutes <= axisEnd && (
+                        <div style={{ position: 'absolute', top: (nowMinutes - axisStart) * PX_PER_MIN, left: 0, right: 0, height: '2px', backgroundColor: '#ef4444', zIndex: 3 }}>
+                          <div style={{ position: 'absolute', left: '-3px', top: '-3px', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                        </div>
+                      )}
+
+                      {col.appointments.map(a => {
+                        const startMin = parseTimeToMinutes(a.time);
+                        const meta = STATUS_META[a.status] || STATUS_META.pending;
+                        const isClosedLike = CLOSED_LIKE.includes(a.status) || a.status === 'noshow';
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={(e) => { e.stopPropagation(); setSelectedAppt(a); }}
+                            style={{
+                              position: 'absolute',
+                              top: (startMin - axisStart) * PX_PER_MIN,
+                              height: Math.max(22, (a.duration_minutes || 30) * PX_PER_MIN - 2),
+                              left: 4, right: 4,
+                              backgroundColor: meta.bg, borderLeft: `3px solid ${meta.border}`, borderRadius: '6px',
+                              padding: '3px 8px', cursor: 'pointer', overflow: 'hidden',
+                              opacity: isClosedLike ? 0.55 : 1, zIndex: 2,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
+                            }}
+                          >
+                            <div style={{ fontSize: '0.72rem', fontWeight: '700', color: meta.text, whiteSpace: 'nowrap', textDecoration: isClosedLike ? 'line-through' : 'none' }}>
+                              {a.time} · {a.customer_name}
+                            </div>
+                            <div style={{ fontSize: '0.66rem', color: meta.text, opacity: 0.85, whiteSpace: 'nowrap' }}>{a.service_name}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {selectedAppt && (
         <AppointmentDetailPanel
@@ -378,8 +534,16 @@ export const AgendaTab = ({ sync }) => {
       )}
 
       {newApptDraft && (
-        <NewAppointmentModal draft={newApptDraft} sync={sync} date={date} onClose={() => setNewApptDraft(null)} />
+        <NewAppointmentModal draft={newApptDraft} sync={sync} onClose={() => setNewApptDraft(null)} />
       )}
+
+      <style>{`
+        @media (max-width: 900px) {
+          .agenda-sidebar { display: none; }
+        }
+      `}</style>
     </div>
   );
 };
+
+const navBtnStyle = { padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' };

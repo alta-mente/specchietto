@@ -132,7 +132,7 @@ export const ResourcesTab = ({ sync }) => {
 
   return (
     <div style={{ maxWidth: '700px' }}>
-      <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Operatori</h2>
+      <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Team</h2>
 
       <form onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
         <input
