@@ -64,11 +64,11 @@ export const useSpecchiettoSync = () => {
     if (res.ok) setRestaurants(await res.json());
   }, []);
 
-  const createRestaurant = useCallback(async (name, slug) => {
+  const createRestaurant = useCallback(async (name, slug, category) => {
     const res = await fetch(`${backendUrl}/api/restaurants`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ name, slug })
+      body: JSON.stringify({ name, slug, category })
     });
     const data = await res.json();
     if (res.ok) {

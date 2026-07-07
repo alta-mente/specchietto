@@ -18,18 +18,37 @@ const TABS = [
   { id: 'settings', label: 'Impostazioni', icon: <Settings size={20} /> }
 ];
 
+const CATEGORIES = [
+  { value: 'hair_salon', label: 'Parrucchiere' },
+  { value: 'barbershop', label: 'Barbiere' },
+  { value: 'spa_wellness', label: 'Spa e Benessere' },
+  { value: 'sports_padel', label: 'Sport e Padel' },
+  { value: 'gym_yoga', label: 'Palestra e Yoga' },
+  { value: 'massage_therapy', label: 'Massaggi' },
+  { value: 'health_medical', label: 'Salute e Medicina' },
+  { value: 'tutoring_lessons', label: 'Lezioni e Ripetizioni' },
+  { value: 'beauty_studio', label: 'Centro Estetico' },
+  { value: 'consulting', label: 'Consulenza' },
+  { value: 'pet_grooming', label: 'Toelettatura' },
+  { value: 'coworking', label: 'Spazi di Coworking' }
+];
+
 const TenantSwitcher = ({ sync }) => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [category, setCategory] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !slug.trim()) return;
+    if (!name.trim() || !slug.trim() || !category) {
+      setError('Compila tutti i campi richiesti.');
+      return;
+    }
     setCreating(true);
     setError('');
-    const { success, error: err } = await sync.createRestaurant(name.trim(), slug.trim());
+    const { success, error: err } = await sync.createRestaurant(name.trim(), slug.trim(), category);
     if (!success) setError(err || 'Errore durante la creazione.');
     setCreating(false);
   };
@@ -45,7 +64,7 @@ const TenantSwitcher = ({ sync }) => {
             onChange={(e) => e.target.value && sync.switchRestaurant(e.target.value)}
             style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', fontSize: '0.85rem' }}
           >
-            <option value="" disabled>Seleziona un salone esistente...</option>
+            <option value="" disabled>Seleziona un'attività esistente...</option>
             {sync.restaurants.map(r => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
@@ -53,12 +72,24 @@ const TenantSwitcher = ({ sync }) => {
         </div>
       )}
 
-      <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>Oppure creane uno nuovo:</p>
+      <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>Oppure crea una nuova attività:</p>
       <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome salone" style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-        <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="slug (es. salone-prova)" style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
-          {creating ? 'Creo...' : '+ Crea salone'}
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome attività" style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+        <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="slug (es. centro-prova)" style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+        
+        <select 
+          value={category} 
+          onChange={(e) => setCategory(e.target.value)}
+          style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}
+        >
+          <option value="" disabled>Seleziona la categoria...</option>
+          {CATEGORIES.map(cat => (
+            <option key={cat.value} value={cat.value}>{cat.label}</option>
+          ))}
+        </select>
+
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', marginTop: '4px' }}>
+          {creating ? 'Creo...' : '+ Crea attività'}
         </button>
         {error && <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>{error}</span>}
       </form>
