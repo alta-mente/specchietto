@@ -3,8 +3,9 @@ import {
   Calendar, Users, Percent, ShieldCheck, Smartphone, Clock, Check,
   ArrowRight, Menu, X, Sparkles, Mail
 } from 'lucide-react';
+import { getBackendUrl } from '../services/backendUrl';
 
-const backendUrl = 'http://localhost:3001';
+const backendUrl = getBackendUrl();
 const ACCENT = '#FF5C82';
 const INK = '#14141c';
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { storageService } from '../services/storageService';
+import { getBackendUrl } from '../services/backendUrl';
 
-const backendUrl = 'http://localhost:3001';
+const backendUrl = getBackendUrl();
 
 export const useSpecchiettoSync = () => {
   const [token, setToken] = useState(() => storageService.getItem('auth_token_admin') || '');

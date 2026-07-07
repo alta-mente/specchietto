@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { storageService } from '../services/storageService';
+import { getBackendUrl } from '../services/backendUrl';
 
-const backendUrl = 'http://localhost:3001';
+const backendUrl = getBackendUrl();
 
 const STEPS = [
   { id: 'service', label: 'Servizio' },
