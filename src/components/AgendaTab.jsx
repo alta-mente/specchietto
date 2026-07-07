@@ -199,7 +199,7 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
   );
 };
 
-const NewAppointmentModal = ({ draft, sync, onClose }) => {
+const NewAppointmentModal = ({ draft, sync, onClose, onResourceChange }) => {
   const [resourceId, setResourceId] = useState(draft.resourceId || sync.resources[0]?.id || '');
   const [serviceId, setServiceId] = useState(sync.services[0]?.id || '');
   const [date, setDate] = useState(draft.date);
@@ -208,6 +208,11 @@ const NewAppointmentModal = ({ draft, sync, onClose }) => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const handleResourceChange = (id) => {
+    setResourceId(id);
+    onResourceChange?.(id);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -223,6 +228,7 @@ const NewAppointmentModal = ({ draft, sync, onClose }) => {
   };
 
   const inputStyle = { padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.85rem', width: '100%' };
+  const fieldLabelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' };
 
   return (
     <div onClick={onClose} style={{
@@ -235,14 +241,25 @@ const NewAppointmentModal = ({ draft, sync, onClose }) => {
       }}>
         <div style={{ fontSize: '1.05rem', fontWeight: '700', marginBottom: '4px' }}>Nuovo appuntamento</div>
 
-        <select value={resourceId} onChange={(e) => setResourceId(e.target.value)} style={inputStyle}>
+        <label style={fieldLabelStyle}>Operatore</label>
+        <select value={resourceId} onChange={(e) => handleResourceChange(e.target.value)} style={inputStyle}>
           {sync.resources.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
+        <label style={fieldLabelStyle}>Servizio</label>
         <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} style={inputStyle}>
           {sync.services.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min)</option>)}
         </select>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={inputStyle} />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required style={inputStyle} />
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ flex: 1 }}>
+            <label style={fieldLabelStyle}>Data</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={fieldLabelStyle}>Ora</label>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required style={inputStyle} />
+          </div>
+        </div>
+        <label style={fieldLabelStyle}>Cliente</label>
         <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome cliente" required style={inputStyle} />
         <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono" style={inputStyle} />
 
@@ -263,6 +280,7 @@ export const AgendaTab = ({ sync }) => {
   const [resourceHours, setResourceHours] = useState({});
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [newApptDraft, setNewApptDraft] = useState(null);
+  const [lastResourceId, setLastResourceId] = useState('');
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -359,6 +377,7 @@ export const AgendaTab = ({ sync }) => {
     let minutes = axisStart + (e.clientY - rect.top) / PX_PER_MIN;
     minutes = Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
     minutes = Math.max(axisStart, Math.min(axisEnd - SNAP_MINUTES, minutes));
+    setLastResourceId(column.defaultResourceId);
     setNewApptDraft({ resourceId: column.defaultResourceId, date: column.date, time: formatMinutesToTime(minutes) });
   };
 
@@ -399,7 +418,7 @@ export const AgendaTab = ({ sync }) => {
               >Settimana</button>
             </div>
             <button
-              onClick={() => setNewApptDraft({ resourceId: sync.resources[0]?.id || '', date, time: formatMinutesToTime(axisStart) })}
+              onClick={() => setNewApptDraft({ resourceId: lastResourceId || sync.resources[0]?.id || '', date, time: formatMinutesToTime(axisStart) })}
               disabled={sync.resources.length === 0 || sync.services.length === 0}
               style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', backgroundColor: '#FF5C82', color: '#fff', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
             >
@@ -534,7 +553,7 @@ export const AgendaTab = ({ sync }) => {
       )}
 
       {newApptDraft && (
-        <NewAppointmentModal draft={newApptDraft} sync={sync} onClose={() => setNewApptDraft(null)} />
+        <NewAppointmentModal draft={newApptDraft} sync={sync} onClose={() => setNewApptDraft(null)} onResourceChange={setLastResourceId} />
       )}
 
       <style>{`
