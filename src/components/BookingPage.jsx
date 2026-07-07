@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { storageService } from '../services/storageService';
 
 const backendUrl = 'http://localhost:3001';
 
@@ -66,9 +67,9 @@ export const BookingPage = ({ businessSlug }) => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedTime, setSelectedTime] = useState(null);
 
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerName, setCustomerName] = useState(() => storageService.getItem('customer_name') || '');
+  const [customerPhone, setCustomerPhone] = useState(() => storageService.getItem('customer_phone') || '');
+  const [customerEmail, setCustomerEmail] = useState(() => storageService.getItem('customer_email') || '');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -168,6 +169,9 @@ export const BookingPage = ({ businessSlug }) => {
       setSubmitError(data.error || 'Errore durante la prenotazione. Riprova.');
       return;
     }
+    storageService.setItem('customer_name', customerName.trim());
+    storageService.setItem('customer_phone', customerPhone.trim());
+    storageService.setItem('customer_email', customerEmail.trim());
     setConfirmedAppointment(data);
   };
 
@@ -297,11 +301,11 @@ export const BookingPage = ({ businessSlug }) => {
               {!anyPreference && selectedResource && <div style={{ color: '#64748b', marginTop: '4px' }}>con {selectedResource.name}</div>}
             </div>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome e cognome *" required style={inputStyle} />
-              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono *" required style={inputStyle} />
-              <input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} type="email" placeholder="Email (facoltativa)" style={inputStyle} />
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            <form onSubmit={handleSubmit} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <input type="text" name="name" autoComplete="name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome e cognome *" required style={inputStyle} />
+              <input type="tel" name="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono *" required style={inputStyle} />
+              <input type="email" name="email" autoComplete="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (facoltativa)" style={inputStyle} />
+              <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
               <button type="submit" disabled={submitting} style={{ padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontWeight: '600' }}>
                 {submitting ? 'Invio...' : 'Conferma prenotazione'}
               </button>
