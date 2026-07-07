@@ -29,19 +29,24 @@ const formatFriendlyDate = (dateStr) => {
 
 const initials = (name) => (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
+const ACCENT = '#FF5C82';
+
 const ProgressHeader = ({ currentStepId, businessName }) => {
   const currentIndex = STEPS.findIndex(s => s.id === currentStepId);
   return (
-    <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#fff' }}>
-      <div style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '14px' }}>{businessName || 'Prenota un appuntamento'}</div>
+    <div style={{
+      padding: '28px 24px 20px',
+      background: 'radial-gradient(circle at 15% 15%, #23233a 0%, #14141c 55%, #0b0b10 100%)'
+    }}>
+      <div style={{ fontSize: '1.3rem', fontWeight: '700', marginBottom: '18px', color: '#fff' }}>{businessName || 'Prenota un appuntamento'}</div>
       <div style={{ display: 'flex', gap: '8px' }}>
         {STEPS.map((step, idx) => (
           <div key={step.id} style={{ flex: 1 }}>
             <div style={{
               height: '4px', borderRadius: '2px', marginBottom: '6px',
-              backgroundColor: idx <= currentIndex ? '#0f172a' : '#e2e8f0'
+              backgroundColor: idx <= currentIndex ? ACCENT : 'rgba(255,255,255,0.15)'
             }} />
-            <div style={{ fontSize: '0.72rem', color: idx <= currentIndex ? '#0f172a' : '#94a3b8', fontWeight: idx === currentIndex ? '700' : '500' }}>
+            <div style={{ fontSize: '0.72rem', color: idx <= currentIndex ? '#fff' : '#6f6c80', fontWeight: idx === currentIndex ? '700' : '500' }}>
               {idx + 1}. {step.label}
             </div>
           </div>
@@ -188,7 +193,10 @@ export const BookingPage = ({ businessSlug }) => {
   if (confirmedAppointment) {
     return (
       <div style={{ maxWidth: '480px', margin: '60px auto', padding: '32px', textAlign: 'center' }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>✓</div>
+        <div style={{
+          width: '64px', height: '64px', borderRadius: '50%', backgroundColor: `${ACCENT}1a`, color: ACCENT,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', margin: '0 auto 16px'
+        }}>✓</div>
         <h2 style={{ marginBottom: '8px' }}>Richiesta inviata!</h2>
         <p style={{ color: '#64748b', marginBottom: '24px' }}>
           Riceverai una conferma da {restaurant.name} a breve.
@@ -200,7 +208,7 @@ export const BookingPage = ({ businessSlug }) => {
         </div>
         <button
           onClick={() => window.location.reload()}
-          style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer' }}
+          style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: 'none', backgroundColor: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: '600' }}
         >
           Prenota un altro appuntamento
         </button>
@@ -250,7 +258,7 @@ export const BookingPage = ({ businessSlug }) => {
               </div>
               {eligibleResources.map(r => (
                 <div key={r.id} onClick={() => handleSelectResource(r)} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: '700' }}>{initials(r.name)}</div>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: ACCENT, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: '700' }}>{initials(r.name)}</div>
                   <div style={{ fontWeight: '600' }}>{r.name}</div>
                 </div>
               ))}
@@ -279,8 +287,10 @@ export const BookingPage = ({ businessSlug }) => {
                         onClick={() => { setSelectedTime(t); setStep('details'); }}
                         style={{
                           padding: '8px 14px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer',
-                          border: '1px solid #cbd5e1', backgroundColor: '#fff', color: '#0f172a'
+                          border: `1px solid ${ACCENT}55`, backgroundColor: '#fff', color: '#0f172a', fontWeight: '600'
                         }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = ACCENT; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fff'; e.currentTarget.style.color = '#0f172a'; }}
                       >
                         {t}
                       </button>
@@ -306,7 +316,7 @@ export const BookingPage = ({ businessSlug }) => {
               <input type="tel" name="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono *" required style={inputStyle} />
               <input type="email" name="email" autoComplete="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (facoltativa)" style={inputStyle} />
               <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-              <button type="submit" disabled={submitting} style={{ padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontWeight: '600' }}>
+              <button type="submit" disabled={submitting} style={{ padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: '600', boxShadow: `0 8px 20px ${ACCENT}40` }}>
                 {submitting ? 'Invio...' : 'Conferma prenotazione'}
               </button>
               {submitError && <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>{submitError}</span>}

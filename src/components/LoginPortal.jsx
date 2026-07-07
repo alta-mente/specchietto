@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { Capacitor } from '@capacitor/core';
@@ -11,21 +11,6 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
   const [view, setView] = useState('login'); // 'login' | 'forgot'
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
-  
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e) => setIsDarkMode(e.matches);
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
 
   const isNative = Capacitor.isNativePlatform();
 
@@ -91,18 +76,16 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
     }
   };
 
-  // Dynamic branding colors
-  const primaryColor = restaurantInfo?.primary_color || '#4d5df1';
-  const accentColor = restaurantInfo?.accent_color || '#FF9000';
+  const accentColor = restaurantInfo?.accent_color || '#FF5C82';
 
   return (
-    <div className={`login-wrapper ${isDarkMode ? 'dark-theme' : 'light-theme'}`} style={{
+    <div className="login-wrapper" style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100%',
       width: '100%',
-      backgroundColor: isDarkMode ? '#0a0a0a' : '#fcfbf9',
+      background: 'radial-gradient(circle at 20% 20%, #23233a 0%, #14141c 55%, #0b0b10 100%)',
       fontFamily: "'DM Sans', sans-serif",
       padding: '20px',
       boxSizing: 'border-box'
@@ -116,11 +99,11 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           width: 420px;
           max-width: 100%;
           border-radius: 20px;
-          border: 1px solid ${isDarkMode ? 'rgba(255, 144, 0, 0.15)' : 'rgba(255, 144, 0, 0.2)'};
-          background: ${isDarkMode ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.7)'};
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          box-shadow: 0 20px 40px ${isDarkMode ? 'rgba(0,0,0,0.5)' : 'rgba(255, 144, 0, 0.05)'};
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.04);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          box-shadow: 0 24px 60px rgba(0,0,0,0.45);
           padding: 40px 30px;
           display: flex;
           flex-direction: column;
@@ -142,12 +125,12 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           font-family: var(--font-display);
           font-size: 1.6rem;
           font-weight: 700;
-          color: ${accentColor};
+          color: #f5f5f7;
           margin: 0;
         }
         .login-subtitle {
           font-size: 0.85rem;
-          color: ${isDarkMode ? '#8a857e' : '#7c736a'};
+          color: #9a97a8;
           margin: 0;
           line-height: 1.4;
         }
@@ -165,7 +148,7 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           font-size: 0.75rem;
           font-weight: 600;
           text-transform: uppercase;
-          color: ${isDarkMode ? '#aaa' : '#555'};
+          color: #8b889a;
           letter-spacing: 0.5px;
         }
         .input-container {
@@ -176,30 +159,30 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
         .input-icon {
           position: absolute;
           left: 14px;
-          color: ${isDarkMode ? '#6c6760' : '#a1978b'};
+          color: #6f6c80;
         }
         .login-input {
           width: 100%;
           padding: 12px 14px 12px 42px;
           border-radius: 10px;
-          border: 1px solid ${isDarkMode ? 'rgba(255, 144, 0, 0.15)' : 'rgba(255, 144, 0, 0.3)'};
-          background-color: ${isDarkMode ? '#121212' : '#fff'};
-          color: ${isDarkMode ? '#f1ece4' : '#2d251e'};
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background-color: rgba(255, 255, 255, 0.03);
+          color: #f1f0f4;
           font-size: 0.9rem;
           outline: none;
           height: 44px;
         }
         .login-input:focus {
           border-color: ${accentColor};
-          box-shadow: 0 0 0 3px ${isDarkMode ? 'rgba(255, 144, 0, 0.1)' : 'rgba(255, 144, 0, 0.05)'};
+          box-shadow: 0 0 0 3px ${accentColor}22;
         }
         .error-banner {
           display: flex;
           align-items: center;
           gap: 10px;
-          background-color: rgba(231, 76, 60, 0.08);
-          border: 1px solid rgba(231, 76, 60, 0.25);
-          color: #e74c3c;
+          background-color: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          color: #fca5a5;
           padding: 10px 14px;
           border-radius: 8px;
           font-size: 0.8rem;
@@ -220,9 +203,10 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           gap: 8px;
           width: 100%;
           height: 46px;
+          box-shadow: 0 8px 20px ${accentColor}40;
         }
         .btn-login:hover:not(:disabled) {
-          filter: brightness(1.1);
+          filter: brightness(1.08);
         }
         .btn-login:disabled {
           opacity: 0.6;
@@ -232,7 +216,7 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           display: flex;
           flex-direction: column;
           gap: 8px;
-          border-top: 1px solid ${isDarkMode ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.06)'};
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
           padding-top: 16px;
           margin-top: 8px;
         }
@@ -240,19 +224,14 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           font-size: 0.7rem;
           font-weight: 600;
           text-transform: uppercase;
-          color: ${isDarkMode ? '#7a756e' : '#a1978b'};
+          color: #6f6c80;
           letter-spacing: 0.5px;
           text-align: center;
         }
-        .demo-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 8px;
-        }
         .demo-btn {
           background: transparent;
-          border: 1px dashed ${isDarkMode ? 'rgba(255, 144, 0, 0.2)' : 'rgba(0, 0, 0, 0.15)'};
-          color: ${isDarkMode ? '#aaa' : '#555'};
+          border: 1px dashed rgba(255, 255, 255, 0.15);
+          color: #9a97a8;
           padding: 6px 4px;
           border-radius: 6px;
           font-size: 0.68rem;
@@ -264,19 +243,19 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           text-overflow: ellipsis;
         }
         .demo-btn:hover {
-          background-color: ${isDarkMode ? 'rgba(255, 144, 0, 0.05)' : 'rgba(255, 144, 0, 0.03)'};
+          background-color: rgba(255, 255, 255, 0.04);
           border-color: ${accentColor};
-          color: ${isDarkMode ? '#fff' : '#000'};
+          color: #fff;
         }
       `}</style>
 
       <div className="login-card">
         <div className="login-header">
-          <img 
-            className="login-logo" 
-            src={restaurantInfo?.logo || "/icon.svg"} 
+          <img
+            className="login-logo"
+            src={restaurantInfo?.logo || "/icon.svg"}
             alt={restaurantInfo?.name || "Specchietto logo"}
-            style={{ filter: isDarkMode ? 'brightness(0) invert(1)' : 'none' }}
+            style={{ filter: 'brightness(0) invert(1)' }}
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = '/icon.svg';
@@ -284,7 +263,7 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           />
           <h1 className="login-title">
             {restaurantInfo?.name || 'Specchietto'}
-            <span style={{ fontWeight: '300', color: isDarkMode ? '#fff' : '#222', marginLeft: '4px' }}>Admin</span>
+            <span style={{ fontWeight: '300', color: '#c9c7d3', marginLeft: '4px' }}>Admin</span>
           </h1>
           <p className="login-subtitle">
             Accedi per gestire gli appuntamenti, i servizi e le impostazioni del tuo salone.
@@ -305,9 +284,9 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                 <label className="form-label">Email Professionale</label>
                 <div className="input-container">
                   <Mail size={16} className="input-icon" />
-                  <input 
-                    type="email" 
-                    className="login-input" 
+                  <input
+                    type="email"
+                    className="login-input"
                     placeholder="es: admin@ilmiosalone.it"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -321,9 +300,9 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                 <label className="form-label">Password</label>
                 <div className="input-container">
                   <Lock size={16} className="input-icon" />
-                  <input 
-                    type="password" 
-                    className="login-input" 
+                  <input
+                    type="password"
+                    className="login-input"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -334,13 +313,13 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-4px' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => { setView('forgot'); setIsSubmitted(false); setErrorMessage(''); }}
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: isDarkMode ? '#8a857e' : '#7c736a',
+                    color: '#9a97a8',
                     fontSize: '0.75rem',
                     cursor: 'pointer',
                     textDecoration: 'underline',
@@ -356,9 +335,9 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                 {!isLoading && <ArrowRight size={16} />}
               </button>
               {onBack && (
-                <button 
-                  type="button" 
-                  className="demo-btn" 
+                <button
+                  type="button"
+                  className="demo-btn"
                   style={{ width: '100%', padding: '10px', marginTop: '8px' }}
                   onClick={onBack}
                   disabled={isLoading}
@@ -372,12 +351,12 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
           /* FORGOT PASSWORD VIEW */
           isSubmitted ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center', padding: '10px 0' }}>
-              <p style={{ fontSize: '0.85rem', color: isDarkMode ? '#f1ece4' : '#2d251e', lineHeight: '1.6', margin: 0 }}>
+              <p style={{ fontSize: '0.85rem', color: '#f1f0f4', lineHeight: '1.6', margin: 0 }}>
                 Se l'indirizzo email inserito esiste nei nostri sistemi, riceverai a breve un'email contenente il link di reimpostazione della password (valido per 1 ora).
               </p>
-              <button 
-                type="button" 
-                className="btn-login" 
+              <button
+                type="button"
+                className="btn-login"
                 style={{ width: '100%' }}
                 onClick={() => { setView('login'); setIsSubmitted(false); setErrorMessage(''); }}
               >
@@ -390,9 +369,9 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                 <label className="form-label">Inserisci la tua email</label>
                 <div className="input-container">
                   <Mail size={16} className="input-icon" />
-                  <input 
-                    type="email" 
-                    className="login-input" 
+                  <input
+                    type="email"
+                    className="login-input"
                     placeholder="es: admin@ilmiosalone.it"
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
@@ -407,9 +386,9 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                 {!isLoading && <ArrowRight size={16} />}
               </button>
 
-              <button 
-                type="button" 
-                className="demo-btn" 
+              <button
+                type="button"
+                className="demo-btn"
                 style={{ width: '100%', padding: '10px', marginTop: '10px' }}
                 onClick={() => { setView('login'); setErrorMessage(''); }}
                 disabled={isLoading}
@@ -421,7 +400,7 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
         )}
 
         {isNative && (
-          <div className="demo-section" style={{ borderTop: `1px solid ${isDarkMode ? 'rgba(255,144,0,0.1)' : 'rgba(0,0,0,0.06)'}`, paddingTop: '16px' }}>
+          <div className="demo-section">
             <div className="demo-title" style={{ marginBottom: '8px' }}>IP Server Backend (Mac/PC)</div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -433,9 +412,9 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                   flex: 1,
                   padding: '8px 12px',
                   borderRadius: '8px',
-                  border: `1px solid ${isDarkMode ? 'rgba(255,144,0,0.15)' : 'rgba(255,144,0,0.3)'}`,
-                  backgroundColor: isDarkMode ? '#121212' : '#fff',
-                  color: isDarkMode ? '#f1ece4' : '#2d251e',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  color: '#f1f0f4',
                   fontSize: '0.8rem',
                   outline: 'none',
                   fontFamily: 'monospace'
@@ -459,7 +438,7 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
                 Salva
               </button>
             </div>
-            <div style={{ fontSize: '0.65rem', color: isDarkMode ? '#7a756e' : '#a1978b', marginTop: '4px', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.65rem', color: '#6f6c80', marginTop: '4px', textAlign: 'center' }}>
               IP Attivo: <span style={{ color: accentColor, fontFamily: 'monospace', fontWeight: 'bold' }}>{currentIp || '192.168.1.100'}</span> (Porta :3001)
             </div>
           </div>
