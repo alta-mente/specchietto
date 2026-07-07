@@ -16,6 +16,7 @@ export const useSpecchiettoSync = () => {
   const [resources, setResources] = useState([]);
   const [services, setServices] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [customers, setCustomers] = useState([]);
 
   const authHeaders = useCallback(() => (
     token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -103,13 +104,22 @@ export const useSpecchiettoSync = () => {
     }
   }, [token, user, refreshRestaurantsList]);
 
+  const refreshCustomers = useCallback(async () => {
+    if (!restaurantId || !token) return;
+    const res = await fetch(`${backendUrl}/api/customers?restaurant_id=${restaurantId}`, {
+      headers: authHeaders()
+    });
+    if (res.ok) setCustomers(await res.json());
+  }, [restaurantId, token, authHeaders]);
+
   useEffect(() => {
     if (token && restaurantId) {
       refreshResources();
       refreshServices();
       refreshAppointments();
+      refreshCustomers();
     }
-  }, [token, restaurantId, refreshResources, refreshServices, refreshAppointments]);
+  }, [token, restaurantId, refreshResources, refreshServices, refreshAppointments, refreshCustomers]);
 
   const createResource = useCallback(async (name, type = 'operator') => {
     const res = await fetch(`${backendUrl}/api/resources`, {
@@ -196,6 +206,27 @@ export const useSpecchiettoSync = () => {
     return res.ok;
   }, [authHeaders, refreshAppointments]);
 
+  const saveCustomer = useCallback(async ({ phone, name, email, notes, noShowCount, blocked }) => {
+    const res = await fetch(`${backendUrl}/api/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        restaurant_id: restaurantId, phone, name, email, notes,
+        no_show_count: noShowCount, blocked: blocked ? 1 : 0
+      })
+    });
+    const data = await res.json();
+    if (res.ok) await refreshCustomers();
+    return { success: res.ok, error: data.error, customer: data };
+  }, [restaurantId, authHeaders, refreshCustomers]);
+
+  const deleteCustomer = useCallback(async (phone) => {
+    await fetch(`${backendUrl}/api/customers/${encodeURIComponent(phone)}?restaurant_id=${restaurantId}`, {
+      method: 'DELETE', headers: authHeaders()
+    });
+    await refreshCustomers();
+  }, [restaurantId, authHeaders, refreshCustomers]);
+
   return {
     backendUrl,
     token,
@@ -205,6 +236,7 @@ export const useSpecchiettoSync = () => {
     resources,
     services,
     appointments,
+    customers,
     login,
     logout,
     switchRestaurant,
@@ -219,8 +251,11 @@ export const useSpecchiettoSync = () => {
     fetchAvailability,
     createAppointment,
     updateAppointmentStatus,
+    saveCustomer,
+    deleteCustomer,
     refreshResources,
     refreshServices,
-    refreshAppointments
+    refreshAppointments,
+    refreshCustomers
   };
 };

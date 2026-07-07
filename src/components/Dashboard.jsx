@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { ResourcesTab } from './ResourcesTab';
 import { ServicesTab } from './ServicesTab';
 import { AgendaTab } from './AgendaTab';
+import { ClientsTab } from './ClientsTab';
 
 const TABS = [
   { id: 'agenda', label: 'Calendario' },
   { id: 'resources', label: 'Team' },
-  { id: 'services', label: 'Servizi' }
+  { id: 'services', label: 'Servizi' },
+  { id: 'clients', label: 'Clienti' }
 ];
 
 const TenantSwitcher = ({ sync }) => {
@@ -123,6 +125,7 @@ export const Dashboard = ({ sync, onLogout }) => {
             {activeTab === 'agenda' && <AgendaTab sync={sync} />}
             {activeTab === 'resources' && <ResourcesTab sync={sync} />}
             {activeTab === 'services' && <ServicesTab sync={sync} />}
+            {activeTab === 'clients' && <ClientsTab sync={sync} />}
           </>
         )}
       </main>

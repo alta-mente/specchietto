@@ -2450,6 +2450,23 @@ app.post('/api/appointments', async (req, res) => {
       [id, restaurant_id, resource_id, service_id, service.name, service.duration_minutes, service.price, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', Date.now()]
     );
 
+    // Registra o aggiorna il cliente nel CRM, cosi' la lista clienti si popola da sola con le prenotazioni
+    if (customer_phone && customer_phone.trim()) {
+      const cleanPhone = customer_phone.trim();
+      const existingCustomer = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [cleanPhone, restaurant_id]);
+      if (existingCustomer) {
+        await dbRun(
+          `UPDATE customers SET name = ?, email = CASE WHEN ? != '' THEN ? ELSE email END WHERE phone = ? AND restaurant_id = ?`,
+          [customer_name.trim(), (customer_email || '').trim(), (customer_email || '').trim(), cleanPhone, restaurant_id]
+        );
+      } else {
+        await dbRun(
+          `INSERT INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, created_at) VALUES (?, ?, ?, ?, '', 0, 0, ?)`,
+          [cleanPhone, restaurant_id, customer_name.trim(), (customer_email || '').trim(), Date.now()]
+        );
+      }
+    }
+
     const created = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
     io.to(restaurant_id).emit('appointmentCreated', created);
     res.json(created);
@@ -2468,6 +2485,15 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
     if (!checkScope(req, res, existing.restaurant_id)) return;
 
     await dbRun('UPDATE appointments SET status = ?, reason = ? WHERE id = ?', [status, reason || '', id]);
+
+    // Incrementa il contatore no-show del cliente nel CRM
+    if (status === 'noshow' && existing.status !== 'noshow' && existing.customer_phone) {
+      await dbRun(
+        'UPDATE customers SET no_show_count = no_show_count + 1 WHERE phone = ? AND restaurant_id = ?',
+        [existing.customer_phone, existing.restaurant_id]
+      );
+    }
+
     const updated = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
     io.to(existing.restaurant_id).emit('appointmentUpdated', updated);
     res.json(updated);
