@@ -304,6 +304,90 @@ const initDb = async () => {
       )
     `);
 
+    // 10. Create resources table (operatori/postazioni prenotabili)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS resources (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        name TEXT,
+        type TEXT DEFAULT 'operator',
+        photo_url TEXT,
+        color TEXT,
+        active INTEGER DEFAULT 1,
+        created_at INTEGER
+      )
+    `);
+
+    // 11. Create services table (servizi con durata, sostituisce il menu piatti)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS services (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        category TEXT,
+        name TEXT,
+        description TEXT,
+        price REAL,
+        duration_minutes INTEGER,
+        active INTEGER DEFAULT 1,
+        created_at INTEGER
+      )
+    `);
+
+    // 12. Create resource_services table (quali servizi puo' eseguire ogni operatore)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS resource_services (
+        resource_id TEXT,
+        service_id TEXT,
+        PRIMARY KEY (resource_id, service_id)
+      )
+    `);
+
+    // 13. Create resource_hours table (orario settimanale ricorrente per operatore)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS resource_hours (
+        id TEXT PRIMARY KEY,
+        resource_id TEXT,
+        day_of_week INTEGER,
+        open_time TEXT,
+        close_time TEXT
+      )
+    `);
+
+    // 14. Create resource_exceptions table (ferie, chiusure straordinarie, orari speciali)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS resource_exceptions (
+        id TEXT PRIMARY KEY,
+        resource_id TEXT,
+        date TEXT,
+        closed INTEGER DEFAULT 1,
+        open_time TEXT,
+        close_time TEXT
+      )
+    `);
+
+    // 15. Create appointments table (sostituisce orders per il caso d'uso appuntamenti)
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        resource_id TEXT,
+        service_id TEXT,
+        service_name TEXT,
+        duration_minutes INTEGER,
+        price REAL,
+        customer_name TEXT,
+        customer_phone TEXT,
+        customer_email TEXT,
+        date TEXT,
+        time TEXT,
+        notes TEXT,
+        status TEXT,
+        reason TEXT,
+        survey_sent INTEGER DEFAULT 0,
+        timestamp INTEGER
+      )
+    `);
+
     // Seed default users if empty
     const usersCount = await dbGet('SELECT COUNT(*) as count FROM users');
     if (usersCount.count === 0) {
@@ -1676,10 +1760,16 @@ app.delete('/api/restaurants/:id', requireAuth, async (req, res) => {
     await dbRun('DELETE FROM devices WHERE restaurant_id = ?', [id]);
     // 3. Customers (CRM)
     await dbRun('DELETE FROM customers WHERE restaurant_id = ?', [id]);
-    // TODO: cancellare qui anche risorse/servizi/appuntamenti una volta definiti
-    // 4. Users
+    // 4. Appointments, services and resources (and their hours/exceptions/assignments)
+    await dbRun('DELETE FROM appointments WHERE restaurant_id = ?', [id]);
+    await dbRun(`DELETE FROM resource_hours WHERE resource_id IN (SELECT id FROM resources WHERE restaurant_id = ?)`, [id]);
+    await dbRun(`DELETE FROM resource_exceptions WHERE resource_id IN (SELECT id FROM resources WHERE restaurant_id = ?)`, [id]);
+    await dbRun(`DELETE FROM resource_services WHERE resource_id IN (SELECT id FROM resources WHERE restaurant_id = ?)`, [id]);
+    await dbRun('DELETE FROM resources WHERE restaurant_id = ?', [id]);
+    await dbRun('DELETE FROM services WHERE restaurant_id = ?', [id]);
+    // 5. Users
     await dbRun('DELETE FROM users WHERE restaurant_id = ?', [id]);
-    // 5. Finally, delete the restaurant itself
+    // 6. Finally, delete the restaurant itself
     await dbRun('DELETE FROM restaurants WHERE id = ?', [id]);
     
     // Emit delete notification to connected sockets
@@ -1706,9 +1796,6 @@ app.get('/api/settings', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// TODO: qui andrà il motore di disponibilità per risorse/operatori a durata variabile,
-// una volta disegnato il modello dati di Specchietto (vedi discussione su resources/services/appointments).
 
 // POST save/update settings
 app.post('/api/settings', requireAuth, async (req, res) => {
@@ -1988,6 +2075,420 @@ io.on('connection', (socket) => {
   });
 });
 
+// ===================== RESOURCES (operatori / postazioni prenotabili) =====================
+
+app.get('/api/resources', async (req, res) => {
+  try {
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    const rows = await dbAll('SELECT * FROM resources WHERE restaurant_id = ? ORDER BY created_at ASC', [restaurantId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/resources', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, name, type, photo_url, color } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+    if (!name) return res.status(400).json({ error: 'Nome obbligatorio' });
+    const id = 'res-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(
+      'INSERT INTO resources (id, restaurant_id, name, type, photo_url, color, active, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+      [id, restaurant_id, name, type || 'operator', photo_url || '', color || '', Date.now()]
+    );
+    const created = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    io.to(restaurant_id).emit('resourcesUpdated', { action: 'create', resource: created });
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/resources/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    const { name, type, photo_url, color, active } = req.body;
+    await dbRun(
+      'UPDATE resources SET name = ?, type = ?, photo_url = ?, color = ?, active = ? WHERE id = ?',
+      [name ?? existing.name, type ?? existing.type, photo_url ?? existing.photo_url, color ?? existing.color, active !== undefined ? (active ? 1 : 0) : existing.active, id]
+    );
+    const updated = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('resourcesUpdated', { action: 'update', resource: updated });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/resources/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    await dbRun('DELETE FROM resources WHERE id = ?', [id]);
+    await dbRun('DELETE FROM resource_services WHERE resource_id = ?', [id]);
+    await dbRun('DELETE FROM resource_hours WHERE resource_id = ?', [id]);
+    await dbRun('DELETE FROM resource_exceptions WHERE resource_id = ?', [id]);
+    io.to(existing.restaurant_id).emit('resourcesUpdated', { action: 'delete', id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET orario settimanale ricorrente di una risorsa
+app.get('/api/resources/:id/hours', async (req, res) => {
+  try {
+    const rows = await dbAll('SELECT * FROM resource_hours WHERE resource_id = ? ORDER BY day_of_week ASC', [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT sostituisce l'intero orario settimanale di una risorsa
+// body: { hours: [{ day_of_week, open_time, close_time }, ...] }
+app.put('/api/resources/:id/hours', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, resource.restaurant_id)) return;
+    const { hours } = req.body;
+    if (!Array.isArray(hours)) return res.status(400).json({ error: 'hours deve essere un array' });
+
+    await dbRun('DELETE FROM resource_hours WHERE resource_id = ?', [id]);
+    for (const h of hours) {
+      const hid = 'rh-' + Math.random().toString(36).substr(2, 9);
+      await dbRun(
+        'INSERT INTO resource_hours (id, resource_id, day_of_week, open_time, close_time) VALUES (?, ?, ?, ?, ?)',
+        [hid, id, h.day_of_week, h.open_time, h.close_time]
+      );
+    }
+    const updated = await dbAll('SELECT * FROM resource_hours WHERE resource_id = ? ORDER BY day_of_week ASC', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET eccezioni (ferie, chiusure straordinarie, orari speciali) di una risorsa
+app.get('/api/resources/:id/exceptions', async (req, res) => {
+  try {
+    const rows = await dbAll('SELECT * FROM resource_exceptions WHERE resource_id = ? ORDER BY date ASC', [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/resources/:id/exceptions', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, resource.restaurant_id)) return;
+    const { date, closed, open_time, close_time } = req.body;
+    if (!date) return res.status(400).json({ error: 'Data obbligatoria' });
+    const eid = 'rex-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(
+      'INSERT INTO resource_exceptions (id, resource_id, date, closed, open_time, close_time) VALUES (?, ?, ?, ?, ?, ?)',
+      [eid, id, date, closed ? 1 : 0, open_time || '', close_time || '']
+    );
+    res.json(await dbGet('SELECT * FROM resource_exceptions WHERE id = ?', [eid]));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/resources/:resourceId/exceptions/:exceptionId', requireAuth, async (req, res) => {
+  try {
+    const { resourceId, exceptionId } = req.params;
+    const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [resourceId]);
+    if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, resource.restaurant_id)) return;
+    await dbRun('DELETE FROM resource_exceptions WHERE id = ? AND resource_id = ?', [exceptionId, resourceId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT sostituisce l'intero elenco di servizi che una risorsa puo' eseguire
+// body: { service_ids: [...] }
+app.put('/api/resources/:id/services', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, resource.restaurant_id)) return;
+    const { service_ids } = req.body;
+    if (!Array.isArray(service_ids)) return res.status(400).json({ error: 'service_ids deve essere un array' });
+
+    await dbRun('DELETE FROM resource_services WHERE resource_id = ?', [id]);
+    for (const serviceId of service_ids) {
+      await dbRun('INSERT INTO resource_services (resource_id, service_id) VALUES (?, ?)', [id, serviceId]);
+    }
+    res.json({ success: true, service_ids });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== SERVICES (catalogo servizi con durata) =====================
+
+app.get('/api/services', async (req, res) => {
+  try {
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    const rows = await dbAll('SELECT * FROM services WHERE restaurant_id = ? ORDER BY category ASC, name ASC', [restaurantId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/services', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, category, name, description, price, duration_minutes } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+    if (!name || !duration_minutes) return res.status(400).json({ error: 'Nome e durata sono obbligatori' });
+    const id = 'svc-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(
+      'INSERT INTO services (id, restaurant_id, category, name, description, price, duration_minutes, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)',
+      [id, restaurant_id, category || '', name, description || '', price || 0, duration_minutes, Date.now()]
+    );
+    const created = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
+    io.to(restaurant_id).emit('servicesUpdated', { action: 'create', service: created });
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/services/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Servizio non trovato' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    const { category, name, description, price, duration_minutes, active } = req.body;
+    await dbRun(
+      'UPDATE services SET category = ?, name = ?, description = ?, price = ?, duration_minutes = ?, active = ? WHERE id = ?',
+      [category ?? existing.category, name ?? existing.name, description ?? existing.description, price ?? existing.price, duration_minutes ?? existing.duration_minutes, active !== undefined ? (active ? 1 : 0) : existing.active, id]
+    );
+    const updated = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('servicesUpdated', { action: 'update', service: updated });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/services/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Servizio non trovato' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    await dbRun('DELETE FROM services WHERE id = ?', [id]);
+    await dbRun('DELETE FROM resource_services WHERE service_id = ?', [id]);
+    io.to(existing.restaurant_id).emit('servicesUpdated', { action: 'delete', id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET quali operatori attivi possono eseguire un dato servizio (per la UI di prenotazione cliente)
+app.get('/api/services/:id/resources', async (req, res) => {
+  try {
+    const rows = await dbAll(
+      `SELECT r.* FROM resources r
+       INNER JOIN resource_services rs ON rs.resource_id = r.id
+       WHERE rs.service_id = ? AND r.active = 1`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== MOTORE DI DISPONIBILITA' =====================
+// A differenza del vecchio motore a slot fissi (pranzo/cena da 30 min per l'intero locale),
+// qui la disponibilita' si calcola per singola risorsa/operatore e dipende dalla durata
+// del servizio scelto: due servizi diversi nello stesso orario possono avere slot diversi.
+
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return null;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+function formatMinutesToTime(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+const calculateResourceAvailability = async (resourceId, date, serviceId) => {
+  const service = await dbGet('SELECT * FROM services WHERE id = ?', [serviceId]);
+  if (!service) return [];
+  const durationMinutes = service.duration_minutes || 30;
+
+  const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
+
+  // Un'eccezione per quella data specifica (ferie o orario speciale) ha sempre la precedenza
+  // sull'orario settimanale ricorrente.
+  const exception = await dbGet('SELECT * FROM resource_exceptions WHERE resource_id = ? AND date = ?', [resourceId, date]);
+
+  let workingRanges;
+  if (exception) {
+    if (exception.closed) return [];
+    workingRanges = [{ open: exception.open_time, close: exception.close_time }];
+  } else {
+    const hours = await dbAll('SELECT * FROM resource_hours WHERE resource_id = ? AND day_of_week = ?', [resourceId, dayOfWeek]);
+    workingRanges = hours.map(h => ({ open: h.open_time, close: h.close_time }));
+  }
+
+  if (workingRanges.length === 0) return [];
+
+  const existing = await dbAll(
+    `SELECT time, duration_minutes FROM appointments WHERE resource_id = ? AND date = ? AND status NOT IN ('declined', 'cancelled')`,
+    [resourceId, date]
+  );
+  const busyRanges = existing.map(a => {
+    const start = parseTimeToMinutes(a.time);
+    return { start, end: start + (a.duration_minutes || 30) };
+  });
+
+  const SLOT_STEP_MINUTES = 15;
+  const slots = [];
+
+  for (const range of workingRanges) {
+    const openMins = parseTimeToMinutes(range.open);
+    const closeMins = parseTimeToMinutes(range.close);
+    if (openMins === null || closeMins === null) continue;
+
+    for (let start = openMins; start + durationMinutes <= closeMins; start += SLOT_STEP_MINUTES) {
+      const end = start + durationMinutes;
+      const overlaps = busyRanges.some(b => start < b.end && end > b.start);
+      if (!overlaps) {
+        slots.push(formatMinutesToTime(start));
+      }
+    }
+  }
+
+  return slots;
+};
+
+app.get('/api/resources/:id/availability', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, service_id } = req.query;
+    if (!date || !service_id) return res.status(400).json({ error: 'date e service_id sono obbligatori' });
+    const slots = await calculateResourceAvailability(id, date, service_id);
+    res.json({ resource_id: id, date, service_id, slots });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== APPOINTMENTS (sostituisce il vecchio "orders") =====================
+
+app.get('/api/appointments', requireAuth, async (req, res) => {
+  try {
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    if (!checkScope(req, res, restaurantId)) return;
+    const rows = await dbAll('SELECT * FROM appointments WHERE restaurant_id = ? ORDER BY date DESC, time DESC', [restaurantId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/appointments/:id', async (req, res) => {
+  try {
+    const row = await dbGet('SELECT * FROM appointments WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Appuntamento non trovato' });
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST crea un nuovo appuntamento (pubblica, usata dal booking del cliente)
+app.post('/api/appointments', async (req, res) => {
+  try {
+    const { restaurant_id, resource_id, service_id, customer_name, customer_phone, customer_email, date, time, notes } = req.body;
+    if (!restaurant_id || !resource_id || !service_id || !customer_name || !date || !time) {
+      return res.status(400).json({ error: 'Campi obbligatori mancanti' });
+    }
+
+    const service = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [service_id, restaurant_id]);
+    if (!service) return res.status(404).json({ error: 'Servizio non trovato' });
+
+    // Ricontrolla che lo slot richiesto sia ancora libero (evita doppie prenotazioni in corsa)
+    const availableSlots = await calculateResourceAvailability(resource_id, date, service_id);
+    if (!availableSlots.includes(time)) {
+      return res.status(409).json({ error: 'Lo slot richiesto non è più disponibile' });
+    }
+
+    const id = 'apt-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(
+      `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      [id, restaurant_id, resource_id, service_id, service.name, service.duration_minutes, service.price, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', Date.now()]
+    );
+
+    const created = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
+    io.to(restaurant_id).emit('appointmentCreated', created);
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT aggiorna lo stato di un appuntamento (confermato, arrivato, completato, no-show, rifiutato...)
+app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reason } = req.body;
+    const existing = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Appuntamento non trovato' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+
+    await dbRun('UPDATE appointments SET status = ?, reason = ? WHERE id = ?', [status, reason || '', id]);
+    const updated = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('appointmentUpdated', updated);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/appointments/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Appuntamento non trovato' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    await dbRun('DELETE FROM appointments WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('appointmentDeleted', { id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Background Worker to automatically send follow-up public review requests to happy customers
 const checkAndSendFollowUpReviews = async () => {
