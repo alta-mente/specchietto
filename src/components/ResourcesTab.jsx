@@ -3,8 +3,8 @@ import { useState } from 'react';
 const DAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
 const cardStyle = {
-  backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)',
-  border: '1px solid var(--glass-border)',
+  backgroundColor: '#ffffff', backdropFilter: 'blur(20px)',
+  border: '1px solid #e2e8f0',
   borderRadius: '12px',
   padding: '20px',
   marginBottom: '16px'
@@ -69,7 +69,7 @@ const ResourceHoursEditor = ({ resource, sync }) => {
       <button
         onClick={handleSave}
         disabled={saving}
-        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
+        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.8rem' }}
       >
         {saving ? 'Salvo...' : saved ? '✓ Salvato' : 'Salva orario'}
       </button>
@@ -92,7 +92,7 @@ const ResourceServicesEditor = ({ resource, sync }) => {
   };
 
   if (sync.services.length === 0) {
-    return <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '12px' }}>Aggiungi prima qualche servizio nella tab "Servizi".</p>;
+    return <p style={{ fontSize: '0.8rem', color: '#475569', marginTop: '12px' }}>Aggiungi prima qualche servizio nella tab "Servizi".</p>;
   }
 
   return (
@@ -109,7 +109,7 @@ const ResourceServicesEditor = ({ resource, sync }) => {
       <button
         onClick={handleSave}
         disabled={saving}
-        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
+        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.8rem' }}
       >
         {saving ? 'Salvo...' : 'Salva servizi assegnati'}
       </button>
@@ -141,13 +141,13 @@ export const ResourcesTab = ({ sync }) => {
           placeholder="Nome operatore (es. Maria)"
           style={{ ...inputStyle, flex: 1 }}
         />
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.85rem' }}>
           + Aggiungi
         </button>
       </form>
 
       {sync.resources.length === 0 && (
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nessun operatore ancora. Aggiungine uno per iniziare.</p>
+        <p style={{ color: '#475569', fontSize: '0.9rem' }}>Nessun operatore ancora. Aggiungine uno per iniziare.</p>
       )}
 
       {sync.resources.map(resource => (

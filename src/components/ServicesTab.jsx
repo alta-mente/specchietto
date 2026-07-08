@@ -35,25 +35,25 @@ export const ServicesTab = ({ sync }) => {
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoria (es. Capelli)" style={{ ...inputStyle, flex: '1 1 120px' }} />
         <input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Durata (min)" style={{ ...inputStyle, width: '110px' }} />
         <input type="number" min="0" step="0.5" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Prezzo (€)" style={{ ...inputStyle, width: '100px' }} />
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.85rem' }}>
           + Aggiungi
         </button>
       </form>
 
       {sync.services.length === 0 && (
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nessun servizio ancora. Aggiungine uno per iniziare.</p>
+        <p style={{ color: '#475569', fontSize: '0.9rem' }}>Nessun servizio ancora. Aggiungine uno per iniziare.</p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {sync.services.map(s => (
           <div key={s.id} style={{
-            backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '10px',
+            backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', borderRadius: '10px',
             padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
           }}>
             <div>
               <strong>{s.name}</strong>
-              {s.category && <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#94a3b8' }}>{s.category}</span>}
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+              {s.category && <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#475569' }}>{s.category}</span>}
+              <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
                 {s.duration_minutes} min • €{s.price}
               </div>
             </div>

@@ -8,7 +8,7 @@ const inputStyle = {
 };
 
 const NoShowBadge = ({ count }) => {
-  if (!count) return <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>—</span>;
+  if (!count) return <span style={{ color: '#475569', fontSize: '0.8rem' }}>—</span>;
   const isHigh = count >= 3;
   return (
     <span style={{
@@ -54,7 +54,7 @@ export const ClientsTab = ({ sync }) => {
   return (
     <div style={{ maxWidth: '760px' }}>
       <h2 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>Clienti</h2>
-      <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '16px' }}>
+      <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '16px' }}>
         Si popola da sola con chi prenota un appuntamento. Puoi anche aggiungere un cliente a mano qui sotto.
       </p>
 
@@ -62,7 +62,7 @@ export const ClientsTab = ({ sync }) => {
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome cliente" style={{ ...inputStyle, flex: '1 1 160px' }} />
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telefono" style={{ ...inputStyle, flex: '1 1 130px' }} />
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (facoltativa)" style={{ ...inputStyle, flex: '1 1 160px' }} />
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#FF5C82', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#FF5C82', color: '#0f172a', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
           + Aggiungi
         </button>
       </form>
@@ -75,14 +75,14 @@ export const ClientsTab = ({ sync }) => {
       />
 
       {filtered.length === 0 ? (
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+        <p style={{ color: '#475569', fontSize: '0.9rem' }}>
           {sync.customers.length === 0 ? 'Nessun cliente ancora. Arriveranno automaticamente con le prime prenotazioni.' : 'Nessun cliente corrisponde alla ricerca.'}
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {filtered.map(c => (
             <div key={c.phone} style={{
-              backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '10px',
+              backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', borderRadius: '10px',
               padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
               opacity: c.blocked ? 0.6 : 1
             }}>
@@ -91,7 +91,7 @@ export const ClientsTab = ({ sync }) => {
                   <strong>{c.name}</strong>
                   {c.blocked ? <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#991b1b', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>Bloccato</span> : null}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
                   {c.phone}{c.email ? ` • ${c.email}` : ''}
                 </div>
               </div>

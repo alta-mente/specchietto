@@ -44,14 +44,14 @@ export const OverviewTab = ({ sync }) => {
   }, [appointments, services, customers]);
 
   const StatCard = ({ title, value, icon, subtitle }) => (
-    <div style={{ backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', boxShadow: 'none', display: 'flex', alignItems: 'center', gap: '16px' }}>
-      <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+    <div style={{ backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', boxShadow: 'none', display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f172a' }}>
         {icon}
       </div>
       <div>
-        <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: '500', marginBottom: '4px' }}>{title}</div>
-        <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fff' }}>{value}</div>
-        {subtitle && <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>{subtitle}</div>}
+        <div style={{ fontSize: '0.85rem', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>{title}</div>
+        <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0f172a' }}>{value}</div>
+        {subtitle && <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '4px' }}>{subtitle}</div>}
       </div>
     </div>
   );
@@ -60,8 +60,8 @@ export const OverviewTab = ({ sync }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.3s ease' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#fff', margin: '0 0 4px 0' }}>Bentornato!</h2>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Ecco un riepilogo della tua giornata: {stats.todayStr}</p>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0' }}>Bentornato!</h2>
+          <p style={{ margin: 0, color: '#475569', fontSize: '0.9rem' }}>Ecco un riepilogo della tua giornata: {stats.todayStr}</p>
         </div>
       </div>
 
@@ -87,14 +87,14 @@ export const OverviewTab = ({ sync }) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-        <div style={{ backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', boxShadow: 'none' }}>
+        <div style={{ backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', boxShadow: 'none' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>Prossimi Appuntamenti</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a' }}>Prossimi Appuntamenti</h3>
             <button style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.85rem', fontWeight: '500', cursor: 'pointer' }}>Vedi tutti</button>
           </div>
           
           {stats.upcoming.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#475569' }}>
               <Clock size={32} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
               <p style={{ margin: 0 }}>Nessun appuntamento imminente per oggi.</p>
             </div>
@@ -107,10 +107,10 @@ export const OverviewTab = ({ sync }) => {
 
                 return (
                   <div key={app.id} style={{ display: 'flex', alignItems: 'center', padding: '12px', border: '1px solid #f1f5f9', borderRadius: '12px', gap: '16px' }}>
-                    <div style={{ fontWeight: '700', color: '#fff', width: '50px' }}>{app.time}</div>
+                    <div style={{ fontWeight: '700', color: '#0f172a', width: '50px' }}>{app.time}</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '600', color: '#fff', fontSize: '0.95rem' }}>{app.customer_name}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                      <div style={{ fontWeight: '600', color: '#0f172a', fontSize: '0.95rem' }}>{app.customer_name}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#475569' }}>
                         {service?.name || 'Servizio'} • {resource?.name || 'Staff'}
                       </div>
                     </div>
@@ -124,28 +124,28 @@ export const OverviewTab = ({ sync }) => {
           )}
         </div>
 
-        <div style={{ backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', boxShadow: 'none' }}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', color: '#fff' }}>Attività Recenti</h3>
+        <div style={{ backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', boxShadow: 'none' }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', color: '#0f172a' }}>Attività Recenti</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb', marginTop: '6px' }} />
               <div>
-                <div style={{ fontSize: '0.85rem', color: '#fff' }}>Nuova prenotazione da <strong>Marco R.</strong></div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>10 min fa</div>
+                <div style={{ fontSize: '0.85rem', color: '#0f172a' }}>Nuova prenotazione da <strong>Marco R.</strong></div>
+                <div style={{ fontSize: '0.75rem', color: '#475569' }}>10 min fa</div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', marginTop: '6px' }} />
               <div>
-                <div style={{ fontSize: '0.85rem', color: '#fff' }}>App. completato per <strong>Laura B.</strong></div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>45 min fa</div>
+                <div style={{ fontSize: '0.85rem', color: '#0f172a' }}>App. completato per <strong>Laura B.</strong></div>
+                <div style={{ fontSize: '0.75rem', color: '#475569' }}>45 min fa</div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', marginTop: '6px' }} />
               <div>
-                <div style={{ fontSize: '0.85rem', color: '#fff' }}><strong>Giulia</strong> ha richiesto spostamento</div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>2 ore fa</div>
+                <div style={{ fontSize: '0.85rem', color: '#0f172a' }}><strong>Giulia</strong> ha richiesto spostamento</div>
+                <div style={{ fontSize: '0.75rem', color: '#475569' }}>2 ore fa</div>
               </div>
             </div>
           </div>

@@ -88,7 +88,7 @@ const TenantSwitcher = ({ sync }) => {
           ))}
         </select>
 
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', marginTop: '4px' }}>
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.85rem', marginTop: '4px' }}>
           {creating ? 'Creo...' : '+ Crea attività'}
         </button>
         {error && <span style={{ color: '#ef4444', fontSize: '0.8rem' }}>{error}</span>}
@@ -104,8 +104,8 @@ export const Dashboard = ({ sync, onLogout }) => {
 
   if (needsTenantSelection) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: 'var(--ink)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="glass-card" style={{ padding: '32px', width: '100%', maxWidth: '480px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="admin-card" style={{ padding: '32px', width: '100%', maxWidth: '480px' }}>
           <TenantSwitcher sync={sync} />
         </div>
       </div>
@@ -116,13 +116,13 @@ export const Dashboard = ({ sync, onLogout }) => {
   const restaurantName = currentRestaurant?.name || 'Salone';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: 'var(--ink)', color: '#fff', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f8fafc', color: '#0f172a', overflow: 'hidden' }}>
       
       {/* Sidebar Navigation */}
       <aside style={{ 
         width: '260px', 
-        backgroundColor: 'rgba(255, 255, 255, 0.03)', 
-        borderRight: '1px solid var(--glass-border)',
+        backgroundColor: '#ffffff', 
+        borderRight: '1px solid #e2e8f0',
         display: 'flex', 
         flexDirection: 'column',
         flexShrink: 0
@@ -136,20 +136,20 @@ export const Dashboard = ({ sync, onLogout }) => {
         </div>
 
         {/* Salon Selector (if super admin) or Name */}
-        <div style={{ padding: '0 20px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ padding: '0 20px 20px 20px', borderBottom: '1px solid #e2e8f0' }}>
           {isSuperAdmin && sync.restaurantId ? (
             <button 
               onClick={() => sync.switchRestaurant('')}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: 'none', color: '#fff', cursor: 'pointer', textAlign: 'left' }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f1f5f9', borderRadius: '8px', border: 'none', color: '#0f172a', cursor: 'pointer', textAlign: 'left' }}
             >
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Gestione</span>
                 <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{restaurantName}</span>
               </div>
-              <ChevronDown size={16} color="#94a3b8" />
+              <ChevronDown size={16} color='#475569' />
             </button>
           ) : (
-            <div style={{ padding: '10px 12px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+            <div style={{ padding: '10px 12px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
               <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{restaurantName}</span>
             </div>
           )}
@@ -172,13 +172,13 @@ export const Dashboard = ({ sync, onLogout }) => {
                 fontSize: '0.95rem',
                 fontWeight: activeTab === tab.id ? '600' : '500',
                 backgroundColor: activeTab === tab.id ? 'rgba(255, 92, 130, 0.15)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--accent)' : '#94a3b8',
+                color: activeTab === tab.id ? 'var(--accent)' : '#475569',
                 transition: 'all 0.2s',
                 textAlign: 'left'
               }}
               onMouseEnter={e => {
                 if (activeTab !== tab.id) {
-                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.color = '#0f172a';
                   e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
                 }
               }}
@@ -216,7 +216,7 @@ export const Dashboard = ({ sync, onLogout }) => {
               transition: 'all 0.2s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.color = '#0f172a';
               e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
             }}
             onMouseLeave={e => {
@@ -230,7 +230,7 @@ export const Dashboard = ({ sync, onLogout }) => {
         </nav>
 
         {/* User / Logout */}
-        <div style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ padding: '20px', borderTop: '1px solid #e2e8f0' }}>
           <button
             onClick={onLogout}
             style={{ 
@@ -238,7 +238,7 @@ export const Dashboard = ({ sync, onLogout }) => {
               borderRadius: '8px', border: 'none', background: 'transparent', color: '#94a3b8',
               cursor: 'pointer', fontSize: '0.95rem', fontWeight: '500', transition: 'all 0.2s'
             }}
-            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseEnter={e => e.currentTarget.style.color = '#0f172a'}
             onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
           >
             <LogOut size={20} />
