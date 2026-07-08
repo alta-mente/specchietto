@@ -35,7 +35,7 @@ export const ServicesTab = ({ sync }) => {
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoria (es. Capelli)" style={{ ...inputStyle, flex: '1 1 120px' }} />
         <input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Durata (min)" style={{ ...inputStyle, width: '110px' }} />
         <input type="number" min="0" step="0.5" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Prezzo (€)" style={{ ...inputStyle, width: '100px' }} />
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.85rem' }}>
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#ffffff', cursor: 'pointer', fontSize: '0.85rem' }}>
           + Aggiungi
         </button>
       </form>

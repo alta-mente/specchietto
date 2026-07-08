@@ -119,26 +119,26 @@ export const LandingPage = ({ onOpenLogin }) => {
           display: 'inline-flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
           color: '#fff', padding: '8px 16px', borderRadius: '99px', fontSize: '0.85rem', fontWeight: '600', marginBottom: '32px', backdropFilter: 'blur(10px)'
         }}>
-          <Sparkles size={16} color="var(--accent)" /> Creato per Parrucchieri & Beauty
+          <Sparkles size={16} color="var(--accent)" /> Il gestionale Leader per Beauty & Wellness
         </div>
         
         <h1 className="animate-fade-up delay-100" style={{ fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', fontWeight: '900', maxWidth: '900px', margin: '0 0 24px 0', lineHeight: '1.1', letterSpacing: '-1px' }}>
-          Agenda sempre piena.<br/>
-          <span style={{ background: 'linear-gradient(135deg, #FF5C82 0%, #a855f7 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', animation: 'gradientShift 8s ease infinite', backgroundSize: '200% 200%' }}>Zero commissioni.</span>
+          Ottimizza i margini.<br/>
+          <span style={{ background: 'linear-gradient(135deg, #FF5C82 0%, #a855f7 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', animation: 'gradientShift 8s ease infinite', backgroundSize: '200% 200%' }}>Azzera i No-Show.</span>
         </h1>
         
         <p className="animate-fade-up delay-200" style={{ fontSize: '1.25rem', color: '#94a3b8', maxWidth: '640px', margin: '0 0 48px 0', lineHeight: '1.6', fontWeight: '400' }}>
-          Specchietto è l'ecosistema definitivo per i servizi alla persona. I clienti prenotano da soli, il tuo staff è sempre sincronizzato.
+          Specchietto è la piattaforma all-in-one definitiva pensata esclusivamente per <strong>Parrucchieri, Centri Estetici, SPA, Barber Shop e Nail Artist</strong>. Analisi dati, gestione appuntamenti e marketing in un unico strumento.
         </p>
         
         <div className="animate-fade-up delay-300" style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href="#early-access" className="glow-button" style={{ padding: '16px 32px', fontSize: '1.05rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            Inizia Ora <ArrowRight size={20} />
+            Richiedi Accesso <ArrowRight size={20} />
           </a>
           <a href="#/prenota?business=salone-prova" className="glass-card" style={{
             padding: '16px 32px', fontSize: '1.05rem', fontWeight: '600', textDecoration: 'none', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            Vedi Demo App
+            Vedi Demo App Clienti
           </a>
         </div>
       </section>
@@ -160,19 +160,18 @@ export const LandingPage = ({ onOpenLogin }) => {
 
       {/* TARGET AUDIENCE */}
       <section style={{ position: 'relative', zIndex: 10, padding: '0 4% 120px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: '800', margin: '0 0 16px 0', letterSpacing: '-1px' }}>Pensato su misura per te</h2>
+        <h2 style={{ fontSize: '2.5rem', fontWeight: '800', margin: '0 0 16px 0', letterSpacing: '-1px' }}>Il partner tecnologico del tuo salone</h2>
         <p style={{ fontSize: '1.15rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto 48px' }}>
-          Qualsiasi sia la tua professione, se gestisci il tuo tempo ad appuntamenti, Specchietto è il software giusto.
+          Abbiamo analizzato i leader di mercato per offrirti una Business Intelligence di altissimo livello. 
+          Costruito specificamente per professionisti del <strong>Beauty & Wellness</strong>.
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center', maxWidth: '900px', margin: '0 auto' }}>
-          {AUDIENCES.map((audience, i) => (
-            <div key={i} className="glass-card" style={{
-              padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))', cursor: 'default'
-            }}>
-              {audience}
-            </div>
-          ))}
+          <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Parrucchieri</div>
+          <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Centri Estetici</div>
+          <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Barber Shop</div>
+          <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>SPA & Benessere</div>
+          <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Nail Artist</div>
+          <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Centri Massaggi</div>
         </div>
       </section>
 

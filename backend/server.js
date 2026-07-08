@@ -2135,6 +2135,16 @@ app.get('/api/resources', async (req, res) => {
   try {
     const restaurantId = req.query.restaurant_id || 'rest-1';
     const rows = await dbAll('SELECT * FROM resources WHERE restaurant_id = ? ORDER BY created_at ASC', [restaurantId]);
+    
+    // Fetch hours and services for each resource
+    for (let resource of rows) {
+      const hours = await dbAll('SELECT day_of_week, open_time, close_time FROM resource_hours WHERE resource_id = ?', [resource.id]);
+      const services = await dbAll('SELECT service_id FROM resource_services WHERE resource_id = ?', [resource.id]);
+      
+      resource.hours = hours;
+      resource.services = services.map(s => s.service_id);
+    }
+    
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });

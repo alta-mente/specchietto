@@ -20,7 +20,15 @@ const inputStyle = {
 const ResourceHoursEditor = ({ resource, sync }) => {
   const [hours, setHours] = useState(() => {
     const base = {};
-    DAYS.forEach((_, idx) => { base[idx] = { enabled: false, open: '09:00', close: '18:00' }; });
+    DAYS.forEach((_, idx) => { 
+      // Try to find if this resource has hours for this day from backend
+      const existing = resource.hours?.find(h => h.day_of_week === idx);
+      if (existing) {
+        base[idx] = { enabled: true, open: existing.open_time, close: existing.close_time };
+      } else {
+        base[idx] = { enabled: false, open: '09:00', close: '18:00' }; 
+      }
+    });
     return base;
   });
   const [saving, setSaving] = useState(false);
@@ -69,7 +77,7 @@ const ResourceHoursEditor = ({ resource, sync }) => {
       <button
         onClick={handleSave}
         disabled={saving}
-        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.8rem' }}
+        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#ffffff', cursor: 'pointer', fontSize: '0.8rem' }}
       >
         {saving ? 'Salvo...' : saved ? '✓ Salvato' : 'Salva orario'}
       </button>
@@ -78,8 +86,9 @@ const ResourceHoursEditor = ({ resource, sync }) => {
 };
 
 const ResourceServicesEditor = ({ resource, sync }) => {
-  const [selected, setSelected] = useState([]);
+  const [selected, setSelected] = useState(resource.services || []);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const toggle = (serviceId) => {
     setSelected(prev => prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]);
@@ -87,8 +96,11 @@ const ResourceServicesEditor = ({ resource, sync }) => {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaved(false);
     await sync.setResourceServices(resource.id, selected);
     setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   if (sync.services.length === 0) {
@@ -109,9 +121,9 @@ const ResourceServicesEditor = ({ resource, sync }) => {
       <button
         onClick={handleSave}
         disabled={saving}
-        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.8rem' }}
+        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#ffffff', cursor: 'pointer', fontSize: '0.8rem' }}
       >
-        {saving ? 'Salvo...' : 'Salva servizi assegnati'}
+        {saving ? 'Salvo...' : saved ? '✓ Salvato' : 'Salva servizi assegnati'}
       </button>
     </div>
   );
@@ -141,7 +153,7 @@ export const ResourcesTab = ({ sync }) => {
           placeholder="Nome operatore (es. Maria)"
           style={{ ...inputStyle, flex: 1 }}
         />
-        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#0f172a', cursor: 'pointer', fontSize: '0.85rem' }}>
+        <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#ffffff', cursor: 'pointer', fontSize: '0.85rem' }}>
           + Aggiungi
         </button>
       </form>
