@@ -4,6 +4,8 @@ import { LoginPortal } from './components/LoginPortal';
 import { Dashboard } from './components/Dashboard';
 import { BookingPage } from './components/BookingPage';
 import { LandingPage } from './components/LandingPage';
+import { MobileApp } from './components/MobileApp';
+import { Capacitor } from '@capacitor/core';
 
 const getView = () => {
   const hash = window.location.hash;
@@ -40,13 +42,14 @@ function App() {
 
 const AdminApp = () => {
   const sync = useSpecchiettoSync();
+  const isNative = Capacitor.isNativePlatform();
 
   return (
     <div className="app-container" style={{ height: '100vh' }}>
       {!sync.token ? (
         <LoginPortal onLogin={sync.login} onBack={() => { window.location.hash = ''; window.location.reload(); }} />
       ) : (
-        <Dashboard sync={sync} onLogout={sync.logout} />
+        isNative ? <MobileApp sync={sync} onLogout={sync.logout} /> : <Dashboard sync={sync} onLogout={sync.logout} />
       )}
     </div>
   );
