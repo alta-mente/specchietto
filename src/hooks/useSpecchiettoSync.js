@@ -17,6 +17,7 @@ export const useSpecchiettoSync = () => {
   const [services, setServices] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [settings, setSettings] = useState({});
 
   const authHeaders = useCallback(() => (
     token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -112,14 +113,21 @@ export const useSpecchiettoSync = () => {
     if (res.ok) setCustomers(await res.json());
   }, [restaurantId, token, authHeaders]);
 
+  const refreshSettings = useCallback(async () => {
+    if (!restaurantId) return;
+    const res = await fetch(`${backendUrl}/api/settings?restaurant_id=${restaurantId}`);
+    if (res.ok) setSettings(await res.json());
+  }, [restaurantId]);
+
   useEffect(() => {
     if (token && restaurantId) {
       refreshResources();
       refreshServices();
       refreshAppointments();
       refreshCustomers();
+      refreshSettings();
     }
-  }, [token, restaurantId, refreshResources, refreshServices, refreshAppointments, refreshCustomers]);
+  }, [token, restaurantId, refreshResources, refreshServices, refreshAppointments, refreshCustomers, refreshSettings]);
 
   const createResource = useCallback(async (name, type = 'operator') => {
     const res = await fetch(`${backendUrl}/api/resources`, {
@@ -227,6 +235,30 @@ export const useSpecchiettoSync = () => {
     await refreshCustomers();
   }, [restaurantId, authHeaders, refreshCustomers]);
 
+  const updateBranding = useCallback(async (logo, primaryColor, accentColor) => {
+    const res = await fetch(`${backendUrl}/api/restaurants/${restaurantId}/branding`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ logo, primary_color: primaryColor, accent_color: accentColor })
+    });
+    if (res.ok) {
+      await refreshRestaurantsList();
+    }
+    return res.ok;
+  }, [restaurantId, authHeaders, refreshRestaurantsList]);
+
+  const saveSettings = useCallback(async (settingsObj) => {
+    const res = await fetch(`${backendUrl}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ restaurant_id: restaurantId, settings: settingsObj })
+    });
+    if (res.ok) {
+      await refreshSettings();
+    }
+    return res.ok;
+  }, [restaurantId, authHeaders, refreshSettings]);
+
   return {
     backendUrl,
     token,
@@ -237,6 +269,7 @@ export const useSpecchiettoSync = () => {
     services,
     appointments,
     customers,
+    settings,
     login,
     logout,
     switchRestaurant,
@@ -256,6 +289,9 @@ export const useSpecchiettoSync = () => {
     refreshResources,
     refreshServices,
     refreshAppointments,
-    refreshCustomers
+    refreshCustomers,
+    refreshSettings,
+    updateBranding,
+    saveSettings
   };
 };

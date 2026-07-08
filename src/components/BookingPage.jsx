@@ -31,42 +31,53 @@ const formatFriendlyDate = (dateStr) => {
 
 const initials = (name) => (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
-const ProgressHeader = ({ currentStepId, businessName }) => {
-  const currentIndex = STEPS.findIndex(s => s.id === currentStepId);
-  return (
-    <div style={{
-      padding: '40px 24px 20px',
-      background: 'rgba(10, 10, 16, 0.7)',
-      backdropFilter: 'blur(20px)',
-      borderBottom: '1px solid var(--glass-border)',
-      position: 'sticky', top: 0, zIndex: 50
-    }}>
-      <div style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '24px', color: '#fff', textAlign: 'center', letterSpacing: '-0.5px' }}>
-        {businessName || 'Prenota un appuntamento'}
-      </div>
-      <div style={{ display: 'flex', gap: '8px', maxWidth: '600px', margin: '0 auto' }}>
-        {STEPS.map((step, idx) => (
-          <div key={step.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{
-              width: '100%', height: '4px', borderRadius: '2px', marginBottom: '8px',
-              background: idx <= currentIndex ? 'linear-gradient(90deg, #FF5C82, #a855f7)' : 'rgba(255,255,255,0.1)',
-              boxShadow: idx === currentIndex ? '0 0 10px rgba(255,92,130,0.5)' : 'none',
-              transition: 'all 0.3s ease'
-            }} />
-            <div style={{ fontSize: '0.75rem', color: idx <= currentIndex ? '#fff' : '#64748b', fontWeight: idx === currentIndex ? '700' : '500', transition: 'color 0.3s ease' }}>
-              {step.label}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 export const BookingPage = ({ businessSlug }) => {
   const [restaurant, setRestaurant] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [services, setServices] = useState([]);
+
+  // Estrai brand dinamico (fallback a default)
+  const brandPrimary = restaurant?.primary_color || '#FF5C82';
+  const brandAccent = restaurant?.accent_color || '#a855f7';
+  const brandLogo = restaurant?.logo;
+
+  const ProgressHeader = ({ currentStepId, businessName }) => {
+    const currentIndex = STEPS.findIndex(s => s.id === currentStepId);
+    return (
+      <div style={{
+        padding: '40px 24px 20px',
+        background: 'rgba(10, 10, 16, 0.7)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid var(--glass-border)',
+        position: 'sticky', top: 0, zIndex: 50
+      }}>
+        {brandLogo ? (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+            <img src={brandLogo} alt={businessName} style={{ maxHeight: '48px', objectFit: 'contain' }} />
+          </div>
+        ) : (
+          <div style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '24px', color: '#fff', textAlign: 'center', letterSpacing: '-0.5px' }}>
+            {businessName || 'Prenota un appuntamento'}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '8px', maxWidth: '600px', margin: '0 auto' }}>
+          {STEPS.map((step, idx) => (
+            <div key={step.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{
+                width: '100%', height: '4px', borderRadius: '2px', marginBottom: '8px',
+                background: idx <= currentIndex ? `linear-gradient(90deg, ${brandPrimary}, ${brandAccent})` : 'rgba(255,255,255,0.1)',
+                boxShadow: idx === currentIndex ? `0 0 10px ${brandPrimary}80` : 'none',
+                transition: 'all 0.3s ease'
+              }} />
+              <div style={{ fontSize: '0.75rem', color: idx <= currentIndex ? '#fff' : '#94a3b8', fontWeight: idx === currentIndex ? '700' : '500', transition: 'color 0.3s ease' }}>
+                {step.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const [step, setStep] = useState('service');
   const [selectedService, setSelectedService] = useState(null);
@@ -205,8 +216,8 @@ export const BookingPage = ({ businessSlug }) => {
       <div style={{ backgroundColor: 'var(--ink)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div className="glass-card animate-fade-up" style={{ maxWidth: '480px', width: '100%', padding: '40px 32px', textAlign: 'center' }}>
           <div style={{
-            width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #10b981, #059669)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 30px rgba(16,185,129,0.3)'
+            width: '80px', height: '80px', borderRadius: '50%', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: `0 0 30px ${brandPrimary}4d`
           }}>
             <Check size={40} color="#fff" />
           </div>
@@ -217,26 +228,26 @@ export const BookingPage = ({ businessSlug }) => {
           
           <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '24px', textAlign: 'left', marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <Scissors size={20} color="var(--accent)" />
+              <Scissors size={20} color={brandPrimary} />
               <div>
                 <strong style={{ fontSize: '1.1rem', display: 'block' }}>{selectedService.name}</strong>
                 <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedService.duration_minutes} min</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <Calendar size={20} color="var(--accent)" />
+              <Calendar size={20} color={brandPrimary} />
               <div>
                 <span style={{ display: 'block' }}>{formatFriendlyDate(date)}</span>
                 <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedTime}</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <User size={20} color="var(--accent)" />
+              <User size={20} color={brandPrimary} />
               <span style={{ color: '#94a3b8' }}>Prenotato per: {customerName}</span>
             </div>
           </div>
           
-          <button onClick={() => window.location.reload()} className="glow-button" style={{ width: '100%', padding: '16px', fontSize: '1.05rem' }}>
+          <button onClick={() => window.location.reload()} className="glow-button" style={{ width: '100%', padding: '16px', fontSize: '1.05rem', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}>
             Prenota un altro appuntamento
           </button>
         </div>
@@ -248,8 +259,8 @@ export const BookingPage = ({ businessSlug }) => {
     <div style={{ backgroundColor: 'var(--ink)', minHeight: '100vh', color: '#fff' }}>
       
       {/* Background blobs for premium feel */}
-      <div style={{ position: 'fixed', top: '-20%', left: '-10%', width: '60vw', height: '60vw', background: 'radial-gradient(circle, rgba(255,92,130,0.1) 0%, transparent 60%)', filter: 'blur(80px)', zIndex: 0, pointerEvents: 'none', animation: 'blobScale 15s infinite ease-in-out' }}></div>
-      <div style={{ position: 'fixed', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 60%)', filter: 'blur(80px)', zIndex: 0, pointerEvents: 'none', animation: 'blobScale 12s infinite ease-in-out reverse' }}></div>
+      <div style={{ position: 'fixed', top: '-20%', left: '-10%', width: '60vw', height: '60vw', background: `radial-gradient(circle, ${brandPrimary}33 0%, transparent 60%)`, filter: 'blur(80px)', zIndex: 0, pointerEvents: 'none', animation: 'blobScale 15s infinite ease-in-out' }}></div>
+      <div style={{ position: 'fixed', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw', background: `radial-gradient(circle, ${brandAccent}33 0%, transparent 60%)`, filter: 'blur(80px)', zIndex: 0, pointerEvents: 'none', animation: 'blobScale 12s infinite ease-in-out reverse' }}></div>
 
       <ProgressHeader currentStepId={step} businessName={restaurant.name} />
 
@@ -270,7 +281,7 @@ export const BookingPage = ({ businessSlug }) => {
                           <Clock size={14} /> {s.duration_minutes} min
                         </div>
                       </div>
-                      <div style={{ fontWeight: '800', fontSize: '1.2rem', color: 'var(--accent)' }}>€{s.price}</div>
+                      <div style={{ fontWeight: '800', fontSize: '1.2rem', color: brandPrimary }}>€{s.price}</div>
                     </div>
                   ))}
                 </div>
@@ -297,7 +308,7 @@ export const BookingPage = ({ businessSlug }) => {
               
               {eligibleResources.map(r => (
                 <div key={r.id} onClick={() => handleSelectResource(r)} className="glass-card" style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: 'linear-gradient(135deg, #FF5C82, #a855f7)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: '800' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: '800' }}>
                     {initials(r.name)}
                   </div>
                   <div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{r.name}</div>
@@ -342,7 +353,7 @@ export const BookingPage = ({ businessSlug }) => {
                           transition: 'all 0.2s', backdropFilter: 'blur(10px)'
                         }}
                         onMouseEnter={(e) => { 
-                          e.currentTarget.style.background = 'linear-gradient(135deg, #FF5C82, #a855f7)'; 
+                          e.currentTarget.style.background = `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`; 
                           e.currentTarget.style.borderColor = 'transparent';
                           e.currentTarget.style.transform = 'translateY(-2px)';
                         }}
@@ -371,7 +382,7 @@ export const BookingPage = ({ businessSlug }) => {
 
             <div className="glass-card" style={{ padding: '24px', marginBottom: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                <Sparkles size={20} color="var(--accent)" />
+                <Sparkles size={20} color={brandPrimary} />
                 <strong style={{ fontSize: '1.1rem' }}>{selectedService.name}</strong>
               </div>
               <div style={{ color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '32px' }}>
@@ -386,7 +397,7 @@ export const BookingPage = ({ businessSlug }) => {
               <input type="email" name="email" autoComplete="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (facoltativa)" style={inputStyle} />
               <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
               
-              <button type="submit" disabled={submitting} className="glow-button" style={{ padding: '18px', fontSize: '1.1rem', marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+              <button type="submit" disabled={submitting} className="glow-button" style={{ padding: '18px', fontSize: '1.1rem', marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}>
                 {submitting ? 'Elaborazione...' : 'Conferma prenotazione'} <ArrowRight size={20} />
               </button>
               {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{submitError}</div>}

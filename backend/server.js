@@ -1400,6 +1400,48 @@ app.post('/api/restaurants/:id/branding', requireAuth, async (req, res) => {
   }
 });
 
+// GET settings for a restaurant
+app.get('/api/settings', async (req, res) => {
+  try {
+    const { restaurant_id } = req.query;
+    if (!restaurant_id) {
+      return res.status(400).json({ error: 'restaurant_id obbligatorio' });
+    }
+    const settings = await dbAll('SELECT key, value FROM settings WHERE restaurant_id = ?', [restaurant_id]);
+    const settingsMap = {};
+    settings.forEach(s => { settingsMap[s.key] = s.value; });
+    res.json(settingsMap);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST save settings
+app.post('/api/settings', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, settings } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+    
+    for (const [key, value] of Object.entries(settings)) {
+      await dbRun(`
+        INSERT INTO settings (restaurant_id, key, value)
+        VALUES (?, ?, ?)
+        ON CONFLICT(restaurant_id, key) DO UPDATE SET value = excluded.value
+      `, [restaurant_id, key, String(value)]);
+    }
+    
+    // Notify clients of updated settings
+    const updatedSettings = await dbAll('SELECT key, value FROM settings WHERE restaurant_id = ?', [restaurant_id]);
+    const settingsMap = {};
+    updatedSettings.forEach(s => { settingsMap[s.key] = s.value; });
+    io.to(restaurant_id).emit('settingsUpdated', settingsMap);
+    
+    res.json({ success: true, settings: settingsMap });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST request password recovery link
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
