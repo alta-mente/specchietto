@@ -141,7 +141,7 @@ export const LandingPage = ({ onOpenLogin }) => {
       <section style={{ position: 'relative', zIndex: 10, padding: '0 4% 120px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', maxWidth: '1100px', margin: '-60px auto 0' }}>
           {BENEFITS.map((b, i) => (
-            <div key={i} className="glass-card animate-fade-up" style={{ padding: '40px 32px', animationDelay: \`\${300 + (i * 100)}ms\` }}>
+            <div key={i} className="glass-card animate-fade-up" style={{ padding: '40px 32px', animationDelay: `${300 + (i * 100)}ms` }}>
               <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(255,92,130,0.2), rgba(255,92,130,0.05))', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', border: '1px solid rgba(255,92,130,0.2)' }}>
                 <b.icon size={28} />
               </div>
