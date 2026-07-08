@@ -388,6 +388,18 @@ const initDb = async () => {
       )
     `);
 
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        code TEXT,
+        discount_type TEXT,
+        discount_value REAL,
+        active INTEGER DEFAULT 1,
+        created_at INTEGER
+      )
+    `);
+
     // Seed default users if empty
     const usersCount = await dbGet('SELECT COUNT(*) as count FROM users');
     if (usersCount.count === 0) {
@@ -2277,6 +2289,49 @@ app.put('/api/resources/:id/services', requireAuth, async (req, res) => {
       await dbRun('INSERT INTO resource_services (resource_id, service_id) VALUES (?, ?)', [id, serviceId]);
     }
     res.json({ success: true, service_ids });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===================== COUPONS (codici sconto) =====================
+
+app.get('/api/coupons', async (req, res) => {
+  try {
+    const restaurantId = req.query.restaurant_id || 'rest-1';
+    const rows = await dbAll('SELECT * FROM coupons WHERE restaurant_id = ? ORDER BY created_at DESC', [restaurantId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/coupons', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, code, discount_type, discount_value } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+    if (!code || !discount_type || !discount_value) return res.status(400).json({ error: 'Codice, tipo e valore obbligatori' });
+    
+    const id = 'coup-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(
+      'INSERT INTO coupons (id, restaurant_id, code, discount_type, discount_value, active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)',
+      [id, restaurant_id, code.toUpperCase(), discount_type, Number(discount_value), Date.now()]
+    );
+    const created = await dbGet('SELECT * FROM coupons WHERE id = ?', [id]);
+    io.to(restaurant_id).emit('couponsUpdated', { action: 'create', coupon: created });
+    res.json({ success: true, coupon: created });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/coupons/:id', requireAuth, async (req, res) => {
+  try {
+    const restaurant_id = req.query.restaurant_id;
+    if (!checkScope(req, res, restaurant_id)) return;
+    await dbRun('DELETE FROM coupons WHERE id = ? AND restaurant_id = ?', [req.params.id, restaurant_id]);
+    io.to(restaurant_id).emit('couponsUpdated', { action: 'delete', id: req.params.id });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

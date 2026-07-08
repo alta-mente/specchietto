@@ -18,6 +18,7 @@ export const useSpecchiettoSync = () => {
   const [appointments, setAppointments] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [settings, setSettings] = useState({});
+  const [coupons, setCoupons] = useState([]);
 
   const authHeaders = useCallback(() => (
     token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -119,6 +120,12 @@ export const useSpecchiettoSync = () => {
     if (res.ok) setSettings(await res.json());
   }, [restaurantId]);
 
+  const refreshCoupons = useCallback(async () => {
+    if (!restaurantId) return;
+    const res = await fetch(`${backendUrl}/api/coupons?restaurant_id=${restaurantId}`);
+    if (res.ok) setCoupons(await res.json());
+  }, [restaurantId]);
+
   useEffect(() => {
     if (token && restaurantId) {
       refreshResources();
@@ -126,8 +133,9 @@ export const useSpecchiettoSync = () => {
       refreshAppointments();
       refreshCustomers();
       refreshSettings();
+      refreshCoupons();
     }
-  }, [token, restaurantId, refreshResources, refreshServices, refreshAppointments, refreshCustomers, refreshSettings]);
+  }, [token, restaurantId, refreshResources, refreshServices, refreshAppointments, refreshCustomers, refreshSettings, refreshCoupons]);
 
   const createResource = useCallback(async (name, type = 'operator') => {
     const res = await fetch(`${backendUrl}/api/resources`, {
@@ -259,6 +267,21 @@ export const useSpecchiettoSync = () => {
     return res.ok;
   }, [restaurantId, authHeaders, refreshSettings]);
 
+  const createCoupon = useCallback(async (code, discount_type, discount_value) => {
+    const res = await fetch(`${backendUrl}/api/coupons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ restaurant_id: restaurantId, code, discount_type, discount_value })
+    });
+    if (res.ok) await refreshCoupons();
+    return res.ok;
+  }, [restaurantId, authHeaders, refreshCoupons]);
+
+  const deleteCoupon = useCallback(async (id) => {
+    await fetch(`${backendUrl}/api/coupons/${id}?restaurant_id=${restaurantId}`, { method: 'DELETE', headers: authHeaders() });
+    await refreshCoupons();
+  }, [restaurantId, authHeaders, refreshCoupons]);
+
   return {
     backendUrl,
     token,
@@ -292,6 +315,10 @@ export const useSpecchiettoSync = () => {
     refreshCustomers,
     refreshSettings,
     updateBranding,
-    saveSettings
+    saveSettings,
+    coupons,
+    refreshCoupons,
+    createCoupon,
+    deleteCoupon
   };
 };
