@@ -104,8 +104,8 @@ export const Dashboard = ({ sync, onLogout }) => {
 
   if (needsTenantSelection) {
     return (
-      <div style={{ height: '100%', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ backgroundColor: '#fff', padding: '32px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', width: '100%', maxWidth: '480px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--ink)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="glass-card" style={{ padding: '32px', width: '100%', maxWidth: '480px' }}>
           <TenantSwitcher sync={sync} />
         </div>
       </div>
@@ -116,13 +116,13 @@ export const Dashboard = ({ sync, onLogout }) => {
   const restaurantName = currentRestaurant?.name || 'Salone';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: 'var(--ink)', color: '#fff', overflow: 'hidden' }}>
       
       {/* Sidebar Navigation */}
       <aside style={{ 
         width: '260px', 
-        backgroundColor: '#0f172a', 
-        color: '#fff', 
+        backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+        borderRight: '1px solid var(--glass-border)',
         display: 'flex', 
         flexDirection: 'column',
         flexShrink: 0
@@ -171,8 +171,8 @@ export const Dashboard = ({ sync, onLogout }) => {
                 cursor: 'pointer',
                 fontSize: '0.95rem',
                 fontWeight: activeTab === tab.id ? '600' : '500',
-                backgroundColor: activeTab === tab.id ? 'rgba(37, 99, 235, 0.15)' : 'transparent',
-                color: activeTab === tab.id ? '#60a5fa' : '#94a3b8',
+                backgroundColor: activeTab === tab.id ? 'rgba(255, 92, 130, 0.15)' : 'transparent',
+                color: activeTab === tab.id ? 'var(--accent)' : '#94a3b8',
                 transition: 'all 0.2s',
                 textAlign: 'left'
               }}
@@ -248,7 +248,7 @@ export const Dashboard = ({ sync, onLogout }) => {
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '32px 40px', backgroundColor: '#f8fafc' }}>
+      <main style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', height: '100%' }}>
           {activeTab === 'overview' && <OverviewTab sync={sync} />}
           {activeTab === 'agenda' && <AgendaTab sync={sync} />}

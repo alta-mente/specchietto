@@ -22,7 +22,7 @@ export const SettingsTab = ({ sync }) => {
       
       {/* Sidebar impostazioni */}
       <div style={{ width: '240px', flexShrink: 0 }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#0f172a', marginBottom: '16px' }}>Impostazioni</h2>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#fff', marginBottom: '16px' }}>Impostazioni</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {menuItems.map(item => (
             <button
@@ -45,11 +45,11 @@ export const SettingsTab = ({ sync }) => {
       </div>
 
       {/* Contenuto principale */}
-      <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '16px', padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', maxWidth: '600px' }}>
+      <div style={{ flex: 1, backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '32px', boxShadow: 'none', maxWidth: '600px' }}>
         
         {activeSection === 'general' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>Informazioni Generali</h3>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#fff' }}>Informazioni Generali</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: '500', color: '#334155' }}>Nome Salone</label>
@@ -77,8 +77,8 @@ export const SettingsTab = ({ sync }) => {
 
         {activeSection === 'hours' && (
           <div>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>Orari di Apertura Salone</h3>
-            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '24px' }}>Imposta gli orari generali in cui il salone è aperto ai clienti. Gli orari dei singoli membri dello staff possono essere gestiti nella tab "Team".</p>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#fff' }}>Orari di Apertura Salone</h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '24px' }}>Imposta gli orari generali in cui il salone è aperto ai clienti. Gli orari dei singoli membri dello staff possono essere gestiti nella tab "Team".</p>
             
             {['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'].map((day, i) => (
               <div key={day} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -108,7 +108,7 @@ export const SettingsTab = ({ sync }) => {
 
         {activeSection === 'booking' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>Regole Prenotazione Online</h3>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#fff' }}>Regole Prenotazione Online</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: '500', color: '#334155' }}>Preavviso minimo per prenotare</label>
@@ -140,8 +140,8 @@ export const SettingsTab = ({ sync }) => {
 
         {activeSection === 'integration' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#0f172a' }}>Integrazione col tuo sito web</h3>
-            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 16px 0' }}>Copia questo codice e incollalo nel tuo sito web per mostrare il pulsante o il modulo di prenotazione direttamente ai tuoi clienti.</p>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: '#fff' }}>Integrazione col tuo sito web</h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 16px 0' }}>Copia questo codice e incollalo nel tuo sito web per mostrare il pulsante o il modulo di prenotazione direttamente ai tuoi clienti.</p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: '500', color: '#334155' }}>Pulsante di prenotazione (Link diretto)</label>
@@ -149,7 +149,7 @@ export const SettingsTab = ({ sync }) => {
                 <textarea 
                   readOnly 
                   value={`<a href="https://specchietto.it/#/prenota?business=${sync.restaurants.find(r => r.id === sync.restaurantId)?.slug || 'demo'}" target="_blank" style="background-color: #0f172a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">Prenota Ora</a>`}
-                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#f8fafc', color: '#334155', minHeight: '80px', resize: 'none' }} 
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: 'var(--ink)', color: '#334155', minHeight: '80px', resize: 'none' }} 
                 />
               </div>
             </div>
@@ -160,7 +160,7 @@ export const SettingsTab = ({ sync }) => {
                 <textarea 
                   readOnly 
                   value={`<iframe src="https://specchietto.it/#/prenota?business=${sync.restaurants.find(r => r.id === sync.restaurantId)?.slug || 'demo'}" width="100%" height="600" frameborder="0" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></iframe>`}
-                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#f8fafc', color: '#334155', minHeight: '80px', resize: 'none' }} 
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: 'var(--ink)', color: '#334155', minHeight: '80px', resize: 'none' }} 
                 />
               </div>
             </div>

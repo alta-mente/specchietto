@@ -95,16 +95,16 @@ const MiniCalendar = ({ selectedDate, onSelectDate }) => {
   const todayStr = todayIso();
 
   return (
-    <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+    <div style={{ backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <button
           onClick={() => setViewMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#64748b' }}
+          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#94a3b8' }}
         >‹</button>
         <strong style={{ fontSize: '0.85rem', textTransform: 'capitalize' }}>{MONTH_NAMES[viewMonth.getMonth()]} {viewMonth.getFullYear()}</strong>
         <button
           onClick={() => setViewMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#64748b' }}
+          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.9rem', color: '#94a3b8' }}
         >›</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', textAlign: 'center', fontSize: '0.68rem', color: '#94a3b8', marginBottom: '4px' }}>
@@ -153,13 +153,13 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        backgroundColor: '#fff', borderRadius: '16px', padding: '24px', width: '360px', maxWidth: '90vw',
+        backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', width: '360px', maxWidth: '90vw',
         boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
             <div style={{ fontSize: '1.1rem', fontWeight: '700' }}>{appointment.customer_name}</div>
-            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{appointment.customer_phone}</div>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{appointment.customer_phone}</div>
           </div>
           <span style={{
             fontSize: '0.7rem', fontWeight: '700', padding: '4px 10px', borderRadius: '999px',
@@ -169,11 +169,11 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
           </span>
         </div>
 
-        <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '14px', marginBottom: '18px', fontSize: '0.85rem' }}>
+        <div style={{ backgroundColor: 'var(--ink)', borderRadius: '10px', padding: '14px', marginBottom: '18px', fontSize: '0.85rem' }}>
           <div style={{ marginBottom: '6px' }}><strong>{appointment.service_name}</strong> ({appointment.duration_minutes} min)</div>
           <div style={{ marginBottom: '6px' }}>{formatFriendlyDate(appointment.date)} alle {appointment.time}</div>
-          <div style={{ color: '#64748b' }}>con {resource?.name || '—'}</div>
-          {appointment.notes && <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0', color: '#64748b' }}>"{appointment.notes}"</div>}
+          <div style={{ color: '#94a3b8' }}>con {resource?.name || '—'}</div>
+          {appointment.notes && <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e2e8f0', color: '#94a3b8' }}>"{appointment.notes}"</div>}
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -228,7 +228,7 @@ const NewAppointmentModal = ({ draft, sync, onClose, onResourceChange }) => {
   };
 
   const inputStyle = { padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.85rem', width: '100%' };
-  const fieldLabelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' };
+  const fieldLabelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '4px' };
 
   return (
     <div onClick={onClose} style={{
@@ -236,7 +236,7 @@ const NewAppointmentModal = ({ draft, sync, onClose, onResourceChange }) => {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
     }}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={handleSubmit} style={{
-        backgroundColor: '#fff', borderRadius: '16px', padding: '24px', width: '380px', maxWidth: '90vw',
+        backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', borderRadius: '16px', padding: '24px', width: '380px', maxWidth: '90vw',
         boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: '12px'
       }}>
         <div style={{ fontSize: '1.05rem', fontWeight: '700', marginBottom: '4px' }}>Nuovo appuntamento</div>
@@ -443,7 +443,7 @@ export const AgendaTab = ({ sync }) => {
         {sync.resources.length === 0 ? (
           <p style={{ color: '#94a3b8' }}>Aggiungi prima un operatore nella tab "Team".</p>
         ) : (
-          <div style={{ display: 'flex', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '12px', overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto', display: 'flex', width: '100%' }}>
               <div style={{ width: '52px', flexShrink: 0, borderRight: '1px solid #f1f5f9' }}>
                 <div style={{ height: '58px', borderBottom: '2px solid #e2e8f0' }} />
@@ -488,7 +488,7 @@ export const AgendaTab = ({ sync }) => {
                     >
                       {!col.range && (
                         <div style={{
-                          position: 'absolute', inset: 0, backgroundColor: '#f8fafc',
+                          position: 'absolute', inset: 0, backgroundColor: 'var(--ink)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           color: '#cbd5e1', fontSize: '0.8rem', fontWeight: '600'
                         }}>

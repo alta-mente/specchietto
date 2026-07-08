@@ -82,7 +82,7 @@ export const ClientsTab = ({ sync }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {filtered.map(c => (
             <div key={c.phone} style={{
-              backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px',
+              backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '10px',
               padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
               opacity: c.blocked ? 0.6 : 1
             }}>
@@ -91,7 +91,7 @@ export const ClientsTab = ({ sync }) => {
                   <strong>{c.name}</strong>
                   {c.blocked ? <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#991b1b', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>Bloccato</span> : null}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
                   {c.phone}{c.email ? ` • ${c.email}` : ''}
                 </div>
               </div>

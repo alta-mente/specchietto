@@ -47,13 +47,13 @@ export const ServicesTab = ({ sync }) => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {sync.services.map(s => (
           <div key={s.id} style={{
-            backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px',
+            backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '10px',
             padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
           }}>
             <div>
               <strong>{s.name}</strong>
               {s.category && <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#94a3b8' }}>{s.category}</span>}
-              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
                 {s.duration_minutes} min • €{s.price}
               </div>
             </div>

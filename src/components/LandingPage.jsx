@@ -7,6 +7,12 @@ import { getBackendUrl } from '../services/backendUrl';
 
 const backendUrl = getBackendUrl();
 
+const AUDIENCES = [
+  'Parrucchieri', 'Barbieri', 'Spa e Benessere', 'Sport e Padel',
+  'Palestra e Yoga', 'Massaggi', 'Salute e Medicina', 'Lezioni e Ripetizioni',
+  'Centri Estetici', 'Consulenza', 'Toelettatura', 'Spazi di Coworking'
+];
+
 const BENEFITS = [
   {
     icon: Percent,
@@ -147,6 +153,24 @@ export const LandingPage = ({ onOpenLogin }) => {
               </div>
               <h3 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '12px', letterSpacing: '-0.5px' }}>{b.title}</h3>
               <p style={{ fontSize: '1rem', color: '#94a3b8', lineHeight: '1.6', margin: 0 }}>{b.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* TARGET AUDIENCE */}
+      <section style={{ position: 'relative', zIndex: 10, padding: '0 4% 120px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '2rem', fontWeight: '800', margin: '0 0 16px 0', letterSpacing: '-1px' }}>Pensato su misura per te</h2>
+        <p style={{ fontSize: '1.15rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto 48px' }}>
+          Qualsiasi sia la tua professione, se gestisci il tuo tempo ad appuntamenti, Specchietto è il software giusto.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center', maxWidth: '900px', margin: '0 auto' }}>
+          {AUDIENCES.map((audience, i) => (
+            <div key={i} className="glass-card" style={{
+              padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))', cursor: 'default'
+            }}>
+              {audience}
             </div>
           ))}
         </div>

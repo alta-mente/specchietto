@@ -3,8 +3,8 @@ import { useState } from 'react';
 const DAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
 const cardStyle = {
-  backgroundColor: '#fff',
-  border: '1px solid #e2e8f0',
+  backgroundColor: 'var(--glass-bg)', backdropFilter: 'blur(20px)',
+  border: '1px solid var(--glass-border)',
   borderRadius: '12px',
   padding: '20px',
   marginBottom: '16px'

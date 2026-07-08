@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { storageService } from '../services/storageService';
 import { getBackendUrl } from '../services/backendUrl';
+import { Sparkles, ArrowRight, Check, Calendar, Clock, User, Scissors } from 'lucide-react';
 
 const backendUrl = getBackendUrl();
 
@@ -30,25 +31,30 @@ const formatFriendlyDate = (dateStr) => {
 
 const initials = (name) => (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
-const ACCENT = '#FF5C82';
-
 const ProgressHeader = ({ currentStepId, businessName }) => {
   const currentIndex = STEPS.findIndex(s => s.id === currentStepId);
   return (
     <div style={{
-      padding: '28px 24px 20px',
-      background: 'radial-gradient(circle at 15% 15%, #23233a 0%, #14141c 55%, #0b0b10 100%)'
+      padding: '40px 24px 20px',
+      background: 'rgba(10, 10, 16, 0.7)',
+      backdropFilter: 'blur(20px)',
+      borderBottom: '1px solid var(--glass-border)',
+      position: 'sticky', top: 0, zIndex: 50
     }}>
-      <div style={{ fontSize: '1.3rem', fontWeight: '700', marginBottom: '18px', color: '#fff' }}>{businessName || 'Prenota un appuntamento'}</div>
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '24px', color: '#fff', textAlign: 'center', letterSpacing: '-0.5px' }}>
+        {businessName || 'Prenota un appuntamento'}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', maxWidth: '600px', margin: '0 auto' }}>
         {STEPS.map((step, idx) => (
-          <div key={step.id} style={{ flex: 1 }}>
+          <div key={step.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{
-              height: '4px', borderRadius: '2px', marginBottom: '6px',
-              backgroundColor: idx <= currentIndex ? ACCENT : 'rgba(255,255,255,0.15)'
+              width: '100%', height: '4px', borderRadius: '2px', marginBottom: '8px',
+              background: idx <= currentIndex ? 'linear-gradient(90deg, #FF5C82, #a855f7)' : 'rgba(255,255,255,0.1)',
+              boxShadow: idx === currentIndex ? '0 0 10px rgba(255,92,130,0.5)' : 'none',
+              transition: 'all 0.3s ease'
             }} />
-            <div style={{ fontSize: '0.72rem', color: idx <= currentIndex ? '#fff' : '#6f6c80', fontWeight: idx === currentIndex ? '700' : '500' }}>
-              {idx + 1}. {step.label}
+            <div style={{ fontSize: '0.75rem', color: idx <= currentIndex ? '#fff' : '#64748b', fontWeight: idx === currentIndex ? '700' : '500', transition: 'color 0.3s ease' }}>
+              {step.label}
             </div>
           </div>
         ))}
@@ -181,63 +187,90 @@ export const BookingPage = ({ businessSlug }) => {
     setConfirmedAppointment(data);
   };
 
-  const inputStyle = { padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.9rem', width: '100%' };
-  const cardStyle = { backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', cursor: 'pointer', transition: 'border-color 0.15s' };
+  const inputStyle = { 
+    padding: '16px', borderRadius: '12px', border: '1px solid var(--glass-border)', 
+    backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: '1rem', 
+    fontFamily: 'inherit', outline: 'none', width: '100%', transition: 'border-color 0.3s' 
+  };
 
   if (notFound) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Salone non trovato.</div>;
+    return <div style={{ minHeight: '100vh', backgroundColor: 'var(--ink)', padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Salone non trovato.</div>;
   }
   if (!restaurant) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>;
+    return <div style={{ minHeight: '100vh', backgroundColor: 'var(--ink)', padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>;
   }
 
   if (confirmedAppointment) {
     return (
-      <div style={{ maxWidth: '480px', margin: '60px auto', padding: '32px', textAlign: 'center' }}>
-        <div style={{
-          width: '64px', height: '64px', borderRadius: '50%', backgroundColor: `${ACCENT}1a`, color: ACCENT,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', margin: '0 auto 16px'
-        }}>✓</div>
-        <h2 style={{ marginBottom: '8px' }}>Richiesta inviata!</h2>
-        <p style={{ color: '#64748b', marginBottom: '24px' }}>
-          Riceverai una conferma da {restaurant.name} a breve.
-        </p>
-        <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', textAlign: 'left', fontSize: '0.9rem' }}>
-          <div style={{ marginBottom: '8px' }}><strong>{selectedService.name}</strong> ({selectedService.duration_minutes} min)</div>
-          <div style={{ marginBottom: '8px' }}>{formatFriendlyDate(date)} alle {selectedTime}</div>
-          <div style={{ color: '#64748b' }}>Prenotato per: {customerName}</div>
+      <div style={{ backgroundColor: 'var(--ink)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div className="glass-card animate-fade-up" style={{ maxWidth: '480px', width: '100%', padding: '40px 32px', textAlign: 'center' }}>
+          <div style={{
+            width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #10b981, #059669)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 30px rgba(16,185,129,0.3)'
+          }}>
+            <Check size={40} color="#fff" />
+          </div>
+          <h2 style={{ marginBottom: '12px', fontSize: '1.8rem', fontWeight: '800' }}>Richiesta Inviata!</h2>
+          <p style={{ color: '#94a3b8', marginBottom: '32px', fontSize: '1.1rem' }}>
+            Riceverai una conferma da {restaurant.name} a breve.
+          </p>
+          
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '24px', textAlign: 'left', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <Scissors size={20} color="var(--accent)" />
+              <div>
+                <strong style={{ fontSize: '1.1rem', display: 'block' }}>{selectedService.name}</strong>
+                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedService.duration_minutes} min</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <Calendar size={20} color="var(--accent)" />
+              <div>
+                <span style={{ display: 'block' }}>{formatFriendlyDate(date)}</span>
+                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedTime}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <User size={20} color="var(--accent)" />
+              <span style={{ color: '#94a3b8' }}>Prenotato per: {customerName}</span>
+            </div>
+          </div>
+          
+          <button onClick={() => window.location.reload()} className="glow-button" style={{ width: '100%', padding: '16px', fontSize: '1.05rem' }}>
+            Prenota un altro appuntamento
+          </button>
         </div>
-        <button
-          onClick={() => window.location.reload()}
-          style={{ marginTop: '24px', padding: '10px 20px', borderRadius: '10px', border: 'none', backgroundColor: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: '600' }}
-        >
-          Prenota un altro appuntamento
-        </button>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', minHeight: '100%', backgroundColor: '#f8fafc' }}>
+    <div style={{ backgroundColor: 'var(--ink)', minHeight: '100vh', color: '#fff' }}>
+      
+      {/* Background blobs for premium feel */}
+      <div style={{ position: 'fixed', top: '-20%', left: '-10%', width: '60vw', height: '60vw', background: 'radial-gradient(circle, rgba(255,92,130,0.1) 0%, transparent 60%)', filter: 'blur(80px)', zIndex: 0, pointerEvents: 'none', animation: 'blobScale 15s infinite ease-in-out' }}></div>
+      <div style={{ position: 'fixed', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 60%)', filter: 'blur(80px)', zIndex: 0, pointerEvents: 'none', animation: 'blobScale 12s infinite ease-in-out reverse' }}></div>
+
       <ProgressHeader currentStepId={step} businessName={restaurant.name} />
 
-      <div style={{ padding: '24px' }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '32px 24px', position: 'relative', zIndex: 10 }}>
         {step === 'service' && (
-          <div>
+          <div className="animate-fade-up">
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '24px', letterSpacing: '-0.5px' }}>Scegli il servizio</h2>
             {services.length === 0 && <p style={{ color: '#94a3b8' }}>Nessun servizio disponibile al momento.</p>}
             {Object.entries(servicesByCategory).map(([category, list]) => (
-              <div key={category} style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>{category}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div key={category} style={{ marginBottom: '32px' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px' }}>{category}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {list.map(s => (
-                    <div key={s.id} onClick={() => handleSelectService(s)} style={cardStyle}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontWeight: '600' }}>{s.name}</div>
-                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{s.duration_minutes} min</div>
+                    <div key={s.id} onClick={() => handleSelectService(s)} className="glass-card" style={{ padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '1.1rem', marginBottom: '4px' }}>{s.name}</div>
+                        <div style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Clock size={14} /> {s.duration_minutes} min
                         </div>
-                        <div style={{ fontWeight: '700' }}>€{s.price}</div>
                       </div>
+                      <div style={{ fontWeight: '800', fontSize: '1.2rem', color: 'var(--accent)' }}>€{s.price}</div>
                     </div>
                   ))}
                 </div>
@@ -247,51 +280,77 @@ export const BookingPage = ({ businessSlug }) => {
         )}
 
         {step === 'resource' && (
-          <div>
-            <button onClick={() => setStep('service')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '16px', fontSize: '0.85rem' }}>← Cambia servizio</button>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div onClick={() => handleSelectResource(null)} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem' }}>✨</div>
+          <div className="animate-fade-up">
+            <button onClick={() => setStep('service')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ← Cambia servizio
+            </button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '24px', letterSpacing: '-0.5px' }}>Con chi vuoi prenotare?</h2>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div onClick={() => handleSelectResource(null)} className="glass-card" style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>✨</div>
                 <div>
-                  <div style={{ fontWeight: '600' }}>Nessuna preferenza</div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Il primo operatore disponibile</div>
+                  <div style={{ fontWeight: '700', fontSize: '1.1rem', marginBottom: '2px' }}>Nessuna preferenza</div>
+                  <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Il primo operatore disponibile</div>
                 </div>
               </div>
+              
               {eligibleResources.map(r => (
-                <div key={r.id} onClick={() => handleSelectResource(r)} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: ACCENT, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: '700' }}>{initials(r.name)}</div>
-                  <div style={{ fontWeight: '600' }}>{r.name}</div>
+                <div key={r.id} onClick={() => handleSelectResource(r)} className="glass-card" style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: 'linear-gradient(135deg, #FF5C82, #a855f7)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: '800' }}>
+                    {initials(r.name)}
+                  </div>
+                  <div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{r.name}</div>
                 </div>
               ))}
-              {eligibleResources.length === 0 && <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Nessun operatore disponibile per questo servizio al momento.</p>}
+              {eligibleResources.length === 0 && <p style={{ color: '#94a3b8' }}>Nessun operatore disponibile per questo servizio.</p>}
             </div>
           </div>
         )}
 
         {step === 'datetime' && (
-          <div>
-            <button onClick={() => setStep('resource')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '16px', fontSize: '0.85rem' }}>← Cambia operatore</button>
-            <input type="date" min={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, marginBottom: '20px' }} />
+          <div className="animate-fade-up">
+            <button onClick={() => setStep('resource')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ← Cambia operatore
+            </button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '24px', letterSpacing: '-0.5px' }}>Scegli data e ora</h2>
+            
+            <div className="glass-card" style={{ padding: '24px', marginBottom: '32px' }}>
+              <input type="date" min={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+            </div>
 
             {loadingSlots ? (
-              <p style={{ color: '#94a3b8' }}>Cerco disponibilità...</p>
+              <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                <div style={{ animation: 'float 2s infinite ease-in-out' }}>Cerco disponibilità...</div>
+              </div>
             ) : sortedTimes.length === 0 ? (
-              <p style={{ color: '#94a3b8' }}>Nessuno slot disponibile per questa data. Prova un altro giorno.</p>
+              <div className="glass-card" style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
+                Nessuno slot disponibile per questa data. Prova un altro giorno.
+              </div>
             ) : (
               Object.entries(grouped).map(([label, times]) => times.length > 0 && (
-                <div key={label} style={{ marginBottom: '18px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>{label}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <div key={label} style={{ marginBottom: '32px' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff', marginBottom: '16px' }}>{label}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
                     {times.map(t => (
                       <button
                         key={t}
                         onClick={() => { setSelectedTime(t); setStep('details'); }}
                         style={{
-                          padding: '8px 14px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer',
-                          border: `1px solid ${ACCENT}55`, backgroundColor: '#fff', color: '#0f172a', fontWeight: '600'
+                          padding: '12px 24px', borderRadius: '12px', fontSize: '1.05rem', cursor: 'pointer',
+                          border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: '600',
+                          transition: 'all 0.2s', backdropFilter: 'blur(10px)'
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = ACCENT; e.currentTarget.style.color = '#fff'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fff'; e.currentTarget.style.color = '#0f172a'; }}
+                        onMouseEnter={(e) => { 
+                          e.currentTarget.style.background = 'linear-gradient(135deg, #FF5C82, #a855f7)'; 
+                          e.currentTarget.style.borderColor = 'transparent';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => { 
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; 
+                          e.currentTarget.style.borderColor = 'var(--glass-border)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
                       >
                         {t}
                       </button>
@@ -304,23 +363,33 @@ export const BookingPage = ({ businessSlug }) => {
         )}
 
         {step === 'details' && (
-          <div>
-            <button onClick={() => setStep('datetime')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '16px', fontSize: '0.85rem' }}>← Cambia data/ora</button>
+          <div className="animate-fade-up">
+            <button onClick={() => setStep('datetime')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ← Cambia data/ora
+            </button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '24px', letterSpacing: '-0.5px' }}>Conferma dati</h2>
 
-            <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px', fontSize: '0.85rem' }}>
-              <strong>{selectedService.name}</strong> · {formatFriendlyDate(date)} alle {selectedTime}
-              {!anyPreference && selectedResource && <div style={{ color: '#64748b', marginTop: '4px' }}>con {selectedResource.name}</div>}
+            <div className="glass-card" style={{ padding: '24px', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <Sparkles size={20} color="var(--accent)" />
+                <strong style={{ fontSize: '1.1rem' }}>{selectedService.name}</strong>
+              </div>
+              <div style={{ color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '32px' }}>
+                <span>{formatFriendlyDate(date)} alle {selectedTime}</span>
+                {!anyPreference && selectedResource && <span>Operatore: {selectedResource.name}</span>}
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleSubmit} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input type="text" name="name" autoComplete="name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome e cognome *" required style={inputStyle} />
               <input type="tel" name="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono *" required style={inputStyle} />
               <input type="email" name="email" autoComplete="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Email (facoltativa)" style={inputStyle} />
-              <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-              <button type="submit" disabled={submitting} style={{ padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: ACCENT, color: '#fff', cursor: 'pointer', fontWeight: '600', boxShadow: `0 8px 20px ${ACCENT}40` }}>
-                {submitting ? 'Invio...' : 'Conferma prenotazione'}
+              <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
+              
+              <button type="submit" disabled={submitting} className="glow-button" style={{ padding: '18px', fontSize: '1.1rem', marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                {submitting ? 'Elaborazione...' : 'Conferma prenotazione'} <ArrowRight size={20} />
               </button>
-              {submitError && <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>{submitError}</span>}
+              {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{submitError}</div>}
             </form>
           </div>
         )}
