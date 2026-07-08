@@ -80,38 +80,63 @@ export const ClientsTab = ({ sync }) => {
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {filtered.map(c => (
-            <div key={c.phone} style={{
-              backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', borderRadius: '10px',
-              padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
-              opacity: c.blocked ? 0.6 : 1
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong>{c.name}</strong>
-                  {c.blocked ? <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#991b1b', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>Bloccato</span> : null}
+          {filtered.map(c => {
+            const r = sync.restaurant || {};
+            const loyaltyEnabled = r.loyalty_enabled === 1;
+            const points = c.loyalty_points || 0;
+            const threshold = r.loyalty_reward_threshold || 500;
+            const canRedeem = loyaltyEnabled && points >= threshold;
+
+            return (
+              <div key={c.phone} style={{
+                backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', borderRadius: '10px',
+                padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
+                opacity: c.blocked ? 0.6 : 1, flexWrap: 'wrap'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong>{c.name}</strong>
+                    {c.blocked ? <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#991b1b', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>Bloccato</span> : null}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
+                    {c.phone}{c.email ? ` • ${c.email}` : ''}
+                  </div>
+                  {loyaltyEnabled && (
+                    <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#0f172a', marginTop: '4px' }}>
+                      Punti Fedeltà: <span style={{ color: canRedeem ? '#16a34a' : 'inherit' }}>{points}</span>
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
-                  {c.phone}{c.email ? ` • ${c.email}` : ''}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  {canRedeem && (
+                    <button
+                      onClick={async () => {
+                        if (window.confirm(`Vuoi usare ${threshold} punti per uno sconto di €${r.loyalty_reward_value}?`)) {
+                          await sync.redeemPoints(c.phone, threshold);
+                        }
+                      }}
+                      style={{ fontSize: '0.75rem', fontWeight: 'bold', padding: '5px 10px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', cursor: 'pointer', boxShadow: '0 2px 8px rgba(16,185,129,0.4)' }}
+                    >
+                      🎁 Riscatta Premio
+                    </button>
+                  )}
+                  <NoShowBadge count={c.no_show_count} />
+                  <button
+                    onClick={() => toggleBlocked(c)}
+                    style={{ fontSize: '0.75rem', padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'none', color: '#334155', cursor: 'pointer' }}
+                  >
+                    {c.blocked ? 'Sblocca' : 'Blocca'}
+                  </button>
+                  <button
+                    onClick={() => sync.deleteCustomer(c.phone)}
+                    style={{ fontSize: '0.75rem', padding: '5px 10px', borderRadius: '6px', border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}
+                  >
+                    Elimina
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <NoShowBadge count={c.no_show_count} />
-                <button
-                  onClick={() => toggleBlocked(c)}
-                  style={{ fontSize: '0.75rem', padding: '5px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'none', color: '#334155', cursor: 'pointer' }}
-                >
-                  {c.blocked ? 'Sblocca' : 'Blocca'}
-                </button>
-                <button
-                  onClick={() => sync.deleteCustomer(c.phone)}
-                  style={{ fontSize: '0.75rem', padding: '5px 10px', borderRadius: '6px', border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}
-                >
-                  Elimina
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

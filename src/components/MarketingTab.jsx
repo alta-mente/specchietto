@@ -90,7 +90,7 @@ export const MarketingTab = ({ sync }) => {
         </div>
       )}
 
-      <div className="admin-card" style={{ padding: '24px' }}>
+      <div className="admin-card" style={{ padding: '24px', marginBottom: '32px' }}>
         <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Tag size={20} color="#2563eb" /> Codici Sconto Attivi
         </h3>
@@ -132,6 +132,74 @@ export const MarketingTab = ({ sync }) => {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="admin-card" style={{ padding: '24px', marginBottom: '32px' }}>
+        <h3 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '1.1rem' }}>Programma Fedeltà</h3>
+        <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '20px' }}>Premi i tuoi clienti più affezionati con punti e sconti.</p>
+        
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const r = sync.restaurant || {};
+          const loyaltyEnabled = e.target.loyalty_enabled.checked;
+          const pointsPerEuro = parseInt(e.target.loyalty_points_per_euro.value, 10);
+          const threshold = parseInt(e.target.loyalty_reward_threshold.value, 10);
+          const reward = parseFloat(e.target.loyalty_reward_value.value);
+          await sync.updateRestaurantLoyalty(loyaltyEnabled, pointsPerEuro, threshold, reward);
+          alert('Impostazioni fedeltà salvate!');
+        }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', cursor: 'pointer' }}>
+            <input type="checkbox" name="loyalty_enabled" defaultChecked={sync.restaurant?.loyalty_enabled === 1} style={{ width: '18px', height: '18px' }} />
+            Attiva Programma Fedeltà
+          </label>
+          
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Punti per ogni Euro speso</label>
+              <input type="number" name="loyalty_points_per_euro" min="1" defaultValue={sync.restaurant?.loyalty_points_per_euro || 1} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} required />
+            </div>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Soglia Premio (Punti)</label>
+              <input type="number" name="loyalty_reward_threshold" min="10" defaultValue={sync.restaurant?.loyalty_reward_threshold || 500} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} required />
+            </div>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Valore Sconto (€)</label>
+              <input type="number" name="loyalty_reward_value" min="1" step="0.5" defaultValue={sync.restaurant?.loyalty_reward_value || 10} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} required />
+            </div>
+          </div>
+          
+          <button type="submit" style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', fontWeight: '600', cursor: 'pointer' }}>
+            Salva Impostazioni
+          </button>
+        </form>
+      </div>
+
+      <div className="admin-card" style={{ padding: '24px' }}>
+        <h3 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '1.1rem' }}>Social & Link in Bio</h3>
+        <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '20px' }}>Copia questi link per aggiungerli ai tuoi social. Il sistema traccerà automaticamente le prenotazioni!</p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {['Instagram', 'Facebook', 'TikTok'].map(social => {
+            const baseUrl = window.location.origin;
+            const slug = sync.restaurant?.slug || sync.restaurant?.id;
+            const link = `${baseUrl}/prenota/${slug}?source=${social.toLowerCase()}`;
+            return (
+              <div key={social} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Link per {social}</strong>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{link}</span>
+                </div>
+                <button onClick={() => {
+                  navigator.clipboard.writeText(link);
+                  alert('Link copiato!');
+                }} style={{ padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+                  Copia
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

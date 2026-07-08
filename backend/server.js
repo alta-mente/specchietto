@@ -162,6 +162,10 @@ const initDb = async () => {
         logo TEXT,
         primary_color TEXT,
         accent_color TEXT,
+        loyalty_enabled INTEGER DEFAULT 0,
+        loyalty_points_per_euro INTEGER DEFAULT 1,
+        loyalty_reward_threshold INTEGER DEFAULT 500,
+        loyalty_reward_value REAL DEFAULT 10.0,
         active INTEGER DEFAULT 1,
         created_at INTEGER
       )
@@ -217,6 +221,7 @@ const initDb = async () => {
         notes TEXT,
         no_show_count INTEGER DEFAULT 0,
         blocked INTEGER DEFAULT 0,
+        loyalty_points INTEGER DEFAULT 0,
         created_at INTEGER,
         PRIMARY KEY (phone, restaurant_id)
       )
@@ -385,6 +390,7 @@ const initDb = async () => {
         status TEXT,
         reason TEXT,
         survey_sent INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'direct',
         timestamp INTEGER
       )
     `);
@@ -1763,6 +1769,23 @@ app.post('/api/restaurants', requireAuth, async (req, res) => {
 });
 
 // PUT toggle restaurant active/inactive status (SaaS Super Admin)
+app.put('/api/restaurants/:id/loyalty', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { loyalty_enabled, loyalty_points_per_euro, loyalty_reward_threshold, loyalty_reward_value } = req.body;
+    if (!checkScope(req, res, id)) return;
+
+    await dbRun(
+      'UPDATE restaurants SET loyalty_enabled = ?, loyalty_points_per_euro = ?, loyalty_reward_threshold = ?, loyalty_reward_value = ? WHERE id = ?',
+      [loyalty_enabled ? 1 : 0, loyalty_points_per_euro, loyalty_reward_threshold, loyalty_reward_value, id]
+    );
+    const updated = await dbGet('SELECT * FROM restaurants WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put('/api/restaurants/:id/status', requireAuth, async (req, res) => {
   try {
     if (req.user.role !== 'super_admin') {
@@ -1919,11 +1942,11 @@ app.post('/api/customers', requireAuth, async (req, res) => {
     }
 
     await dbRun(`
-      INSERT OR REPLACE INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM customers WHERE phone = ? AND restaurant_id = ?), ?))
+      INSERT OR REPLACE INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, loyalty_points, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT loyalty_points FROM customers WHERE phone = ? AND restaurant_id = ?), 0), COALESCE((SELECT created_at FROM customers WHERE phone = ? AND restaurant_id = ?), ?))
     `, [
       phone.trim(), targetRestaurantId, name.trim(), (email || '').trim(), notes || '', 
-      no_show_count || 0, blocked || 0, phone.trim(), targetRestaurantId, Date.now()
+      no_show_count || 0, blocked || 0, phone.trim(), targetRestaurantId, phone.trim(), targetRestaurantId, Date.now()
     ]);
 
     const row = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone.trim(), targetRestaurantId]);
@@ -1965,6 +1988,32 @@ app.post('/api/customers/import', requireAuth, async (req, res) => {
     }
 
     res.json({ success: true, importedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/customers/:phone/redeem_points', requireAuth, async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { restaurant_id, points } = req.body;
+    const targetRestaurantId = restaurant_id || 'rest-1';
+    if (!checkScope(req, res, targetRestaurantId)) return;
+
+    const cust = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone.trim(), targetRestaurantId]);
+    if (!cust) return res.status(404).json({ error: 'Cliente non trovato' });
+
+    if (cust.loyalty_points < points) {
+      return res.status(400).json({ error: 'Punti insufficienti' });
+    }
+
+    await dbRun(
+      'UPDATE customers SET loyalty_points = loyalty_points - ? WHERE phone = ? AND restaurant_id = ?',
+      [points, phone.trim(), targetRestaurantId]
+    );
+
+    const updated = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone.trim(), targetRestaurantId]);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2663,6 +2712,20 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
         'UPDATE customers SET no_show_count = no_show_count + 1 WHERE phone = ? AND restaurant_id = ?',
         [existing.customer_phone, existing.restaurant_id]
       );
+    }
+
+    // Aggiungi punti fedeltà se l'appuntamento è completato
+    if (status === 'completed' && existing.status !== 'completed' && existing.customer_phone && existing.price) {
+      const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
+      if (restaurant && restaurant.loyalty_enabled === 1) {
+        const points = Math.floor(existing.price * (restaurant.loyalty_points_per_euro || 1));
+        if (points > 0) {
+          await dbRun(
+            'UPDATE customers SET loyalty_points = loyalty_points + ? WHERE phone = ? AND restaurant_id = ?',
+            [points, existing.customer_phone, existing.restaurant_id]
+          );
+        }
+      }
     }
 
     const updated = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);

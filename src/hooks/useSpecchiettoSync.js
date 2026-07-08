@@ -282,6 +282,38 @@ export const useSpecchiettoSync = () => {
     await refreshCoupons();
   }, [restaurantId, authHeaders, refreshCoupons]);
 
+  const redeemPoints = useCallback(async (phone, points) => {
+    const res = await fetch(`${backendUrl}/api/customers/${encodeURIComponent(phone)}/redeem_points`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ restaurant_id: restaurantId, points })
+    });
+    if (res.ok) await refreshCustomers();
+    return res.ok;
+  }, [restaurantId, authHeaders, refreshCustomers]);
+
+  const updateRestaurantLoyalty = useCallback(async (loyalty_enabled, loyalty_points_per_euro, loyalty_reward_threshold, loyalty_reward_value) => {
+    const res = await fetch(`${backendUrl}/api/restaurants/${restaurantId}/loyalty`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ loyalty_enabled, loyalty_points_per_euro, loyalty_reward_threshold, loyalty_reward_value })
+    });
+    if (res.ok) await refreshRestaurantsList();
+    return res.ok;
+  }, [restaurantId, authHeaders, refreshRestaurantsList]);
+
+  const saveBranding = useCallback(async (brandingObj) => {
+    const res = await fetch(`${backendUrl}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ restaurant_id: restaurantId, settings: brandingObj })
+    });
+    if (res.ok) {
+      await refreshSettings();
+    }
+    return res.ok;
+  }, [restaurantId, authHeaders, refreshSettings]);
+
   return {
     backendUrl,
     token,
@@ -309,6 +341,9 @@ export const useSpecchiettoSync = () => {
     updateAppointmentStatus,
     saveCustomer,
     deleteCustomer,
+    redeemPoints,
+    updateRestaurantLoyalty,
+    saveBranding,
     refreshResources,
     refreshServices,
     refreshAppointments,
