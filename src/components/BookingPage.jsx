@@ -8,6 +8,7 @@ const backendUrl = getBackendUrl();
 const STEPS = [
   { id: 'service', label: 'Servizio' },
   { id: 'resource', label: 'Operatore' },
+  { id: 'addon', label: 'Potenzia' },
   { id: 'datetime', label: 'Data e ora' },
   { id: 'details', label: 'I tuoi dati' }
 ];
@@ -81,6 +82,7 @@ export const BookingPage = ({ businessSlug }) => {
 
   const [step, setStep] = useState('service');
   const [selectedService, setSelectedService] = useState(null);
+  const [selectedAddon, setSelectedAddon] = useState(null);
   const [eligibleResources, setEligibleResources] = useState([]);
   const [selectedResource, setSelectedResource] = useState(null); // null id = "nessuna preferenza"
   const [anyPreference, setAnyPreference] = useState(false);
@@ -112,7 +114,7 @@ export const BookingPage = ({ businessSlug }) => {
 
   const servicesByCategory = useMemo(() => {
     const groups = {};
-    services.forEach(s => {
+    services.filter(s => s.is_addon !== 1).forEach(s => {
       const cat = s.category || 'Altri servizi';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(s);
@@ -120,8 +122,11 @@ export const BookingPage = ({ businessSlug }) => {
     return groups;
   }, [services]);
 
+  const addons = useMemo(() => services.filter(s => s.is_addon === 1), [services]);
+
   const handleSelectService = async (service) => {
     setSelectedService(service);
+    setSelectedAddon(null);
     setAnyPreference(false);
     setSelectedResource(null);
     const res = await fetch(`${backendUrl}/api/services/${service.id}/resources`);
@@ -133,7 +138,11 @@ export const BookingPage = ({ businessSlug }) => {
   const handleSelectResource = (resource) => {
     setSelectedResource(resource);
     setAnyPreference(!resource);
-    setStep('datetime');
+    if (addons.length > 0) {
+      setStep('addon');
+    } else {
+      setStep('datetime');
+    }
   };
 
   const loadSlots = useCallback(async () => {
@@ -142,7 +151,7 @@ export const BookingPage = ({ businessSlug }) => {
     setSelectedTime(null);
     const targets = anyPreference ? eligibleResources : [selectedResource];
     const results = await Promise.all(targets.map(async (r) => {
-      const res = await fetch(`${backendUrl}/api/resources/${r.id}/availability?date=${date}&service_id=${selectedService.id}`);
+      const res = await fetch(`${backendUrl}/api/resources/${r.id}/availability?date=${date}&service_id=${selectedService.id}${selectedAddon ? `&addon_id=${selectedAddon.id}` : ''}`);
       const data = await res.json();
       return { resourceId: r.id, slots: data.slots || [] };
     }));
@@ -152,7 +161,7 @@ export const BookingPage = ({ businessSlug }) => {
     });
     setSlotMap(map);
     setLoadingSlots(false);
-  }, [selectedService, selectedResource, anyPreference, eligibleResources, date]);
+  }, [selectedService, selectedAddon, selectedResource, anyPreference, eligibleResources, date]);
 
   useEffect(() => {
     if (step === 'datetime') loadSlots();
@@ -178,6 +187,7 @@ export const BookingPage = ({ businessSlug }) => {
         restaurant_id: restaurant.id,
         resource_id: resourceId,
         service_id: selectedService.id,
+        addon_id: selectedAddon?.id,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         customer_email: customerEmail.trim(),
@@ -230,8 +240,8 @@ export const BookingPage = ({ businessSlug }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <Scissors size={20} color={brandPrimary} />
               <div>
-                <strong style={{ fontSize: '1.1rem', display: 'block' }}>{selectedService.name}</strong>
-                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedService.duration_minutes} min</span>
+                <strong style={{ fontSize: '1.1rem', display: 'block' }}>{selectedService.name} {selectedAddon ? `+ ${selectedAddon.name}` : ''}</strong>
+                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedService.duration_minutes + (selectedAddon?.duration_minutes || 0)} min</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -319,10 +329,38 @@ export const BookingPage = ({ businessSlug }) => {
           </div>
         )}
 
-        {step === 'datetime' && (
+        {step === 'addon' && (
           <div className="animate-fade-up">
             <button onClick={() => setStep('resource')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ← Cambia operatore
+              ← Indietro
+            </button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '8px', letterSpacing: '-0.5px' }}>Potenzia il tuo trattamento</h2>
+            <p style={{ color: '#94a3b8', marginBottom: '24px' }}>Completa il tuo appuntamento aggiungendo un servizio extra.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+              {addons.map(a => (
+                <div key={a.id} onClick={() => { setSelectedAddon(a); setStep('datetime'); }} className="glass-card" style={{ padding: '20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: selectedAddon?.id === a.id ? `1px solid ${brandPrimary}` : '1px solid var(--glass-border)' }}>
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: '1.1rem', marginBottom: '4px' }}>{a.name}</div>
+                    <div style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Clock size={14} /> +{a.duration_minutes} min
+                    </div>
+                  </div>
+                  <div style={{ fontWeight: '800', fontSize: '1.2rem', color: brandPrimary }}>+€{a.price}</div>
+                </div>
+              ))}
+            </div>
+            
+            <button onClick={() => { setSelectedAddon(null); setStep('datetime'); }} style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: '600' }}>
+              No grazie, procedi
+            </button>
+          </div>
+        )}
+
+        {step === 'datetime' && (
+          <div className="animate-fade-up">
+            <button onClick={() => setStep(addons.length > 0 ? 'addon' : 'resource')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ← Indietro
             </button>
             <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '24px', letterSpacing: '-0.5px' }}>Scegli data e ora</h2>
             

@@ -152,11 +152,11 @@ export const useSpecchiettoSync = () => {
     await refreshResources();
   }, [authHeaders, refreshResources]);
 
-  const createService = useCallback(async (name, category, durationMinutes, price) => {
+  const createService = useCallback(async (name, category, durationMinutes, price, isAddon = false) => {
     const res = await fetch(`${backendUrl}/api/services`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ restaurant_id: restaurantId, name, category, duration_minutes: durationMinutes, price })
+      body: JSON.stringify({ restaurant_id: restaurantId, name, category, duration_minutes: durationMinutes, price, is_addon: isAddon })
     });
     if (res.ok) await refreshServices();
     return res.ok;

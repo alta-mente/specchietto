@@ -12,17 +12,19 @@ export const ServicesTab = ({ sync }) => {
   const [category, setCategory] = useState('');
   const [duration, setDuration] = useState('30');
   const [price, setPrice] = useState('');
+  const [isAddon, setIsAddon] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name.trim() || !duration) return;
     setCreating(true);
-    await sync.createService(name.trim(), category.trim(), parseInt(duration, 10), parseFloat(price || '0'));
+    await sync.createService(name.trim(), category.trim(), parseInt(duration, 10), parseFloat(price || '0'), isAddon);
     setName('');
     setCategory('');
     setDuration('30');
     setPrice('');
+    setIsAddon(false);
     setCreating(false);
   };
 
@@ -30,11 +32,15 @@ export const ServicesTab = ({ sync }) => {
     <div style={{ maxWidth: '700px' }}>
       <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Servizi</h2>
 
-      <form onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+      <form onSubmit={handleCreate} style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome servizio (es. Taglio e Piega)" style={{ ...inputStyle, flex: '2 1 200px' }} />
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Categoria (es. Capelli)" style={{ ...inputStyle, flex: '1 1 120px' }} />
         <input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Durata (min)" style={{ ...inputStyle, width: '110px' }} />
         <input type="number" min="0" step="0.5" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Prezzo (€)" style={{ ...inputStyle, width: '100px' }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#475569' }}>
+          <input type="checkbox" checked={isAddon} onChange={(e) => setIsAddon(e.target.checked)} />
+          Trattamento Aggiuntivo (Upsell)
+        </label>
         <button type="submit" disabled={creating} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#ffffff', cursor: 'pointer', fontSize: '0.85rem' }}>
           + Aggiungi
         </button>
@@ -52,6 +58,9 @@ export const ServicesTab = ({ sync }) => {
           }}>
             <div>
               <strong>{s.name}</strong>
+              {s.is_addon === 1 && (
+                <span style={{ marginLeft: '8px', padding: '2px 6px', backgroundColor: '#fef08a', color: '#854d0e', fontSize: '0.7rem', borderRadius: '4px', fontWeight: 'bold' }}>UPSELL</span>
+              )}
               {s.category && <span style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#475569' }}>{s.category}</span>}
               <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
                 {s.duration_minutes} min • €{s.price}

@@ -328,6 +328,7 @@ const initDb = async () => {
         description TEXT,
         price REAL,
         duration_minutes INTEGER,
+        is_addon INTEGER DEFAULT 0,
         active INTEGER DEFAULT 1,
         created_at INTEGER
       )
@@ -2361,13 +2362,13 @@ app.get('/api/services', async (req, res) => {
 
 app.post('/api/services', requireAuth, async (req, res) => {
   try {
-    const { restaurant_id, category, name, description, price, duration_minutes } = req.body;
+    const { restaurant_id, category, name, description, price, duration_minutes, is_addon } = req.body;
     if (!checkScope(req, res, restaurant_id)) return;
     if (!name || !duration_minutes) return res.status(400).json({ error: 'Nome e durata sono obbligatori' });
     const id = 'svc-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
-      'INSERT INTO services (id, restaurant_id, category, name, description, price, duration_minutes, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)',
-      [id, restaurant_id, category || '', name, description || '', price || 0, duration_minutes, Date.now()]
+      'INSERT INTO services (id, restaurant_id, category, name, description, price, duration_minutes, is_addon, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)',
+      [id, restaurant_id, category || '', name, description || '', price || 0, duration_minutes, is_addon ? 1 : 0, Date.now()]
     );
     const created = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
     io.to(restaurant_id).emit('servicesUpdated', { action: 'create', service: created });
@@ -2383,10 +2384,10 @@ app.put('/api/services/:id', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Servizio non trovato' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
-    const { category, name, description, price, duration_minutes, active } = req.body;
+    const { category, name, description, price, duration_minutes, is_addon, active } = req.body;
     await dbRun(
-      'UPDATE services SET category = ?, name = ?, description = ?, price = ?, duration_minutes = ?, active = ? WHERE id = ?',
-      [category ?? existing.category, name ?? existing.name, description ?? existing.description, price ?? existing.price, duration_minutes ?? existing.duration_minutes, active !== undefined ? (active ? 1 : 0) : existing.active, id]
+      'UPDATE services SET category = ?, name = ?, description = ?, price = ?, duration_minutes = ?, is_addon = ?, active = ? WHERE id = ?',
+      [category ?? existing.category, name ?? existing.name, description ?? existing.description, price ?? existing.price, duration_minutes ?? existing.duration_minutes, is_addon !== undefined ? (is_addon ? 1 : 0) : existing.is_addon, active !== undefined ? (active ? 1 : 0) : existing.active, id]
     );
     const updated = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
     io.to(existing.restaurant_id).emit('servicesUpdated', { action: 'update', service: updated });
@@ -2447,10 +2448,15 @@ function formatMinutesToTime(mins) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-const calculateResourceAvailability = async (resourceId, date, serviceId) => {
+const calculateResourceAvailability = async (resourceId, date, serviceId, addonId = null) => {
   const service = await dbGet('SELECT * FROM services WHERE id = ?', [serviceId]);
   if (!service) return [];
-  const durationMinutes = service.duration_minutes || 30;
+  let durationMinutes = service.duration_minutes || 30;
+
+  if (addonId) {
+    const addon = await dbGet('SELECT * FROM services WHERE id = ?', [addonId]);
+    if (addon) durationMinutes += addon.duration_minutes || 0;
+  }
 
   const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
 
@@ -2479,7 +2485,7 @@ const calculateResourceAvailability = async (resourceId, date, serviceId) => {
   });
 
   const SLOT_STEP_MINUTES = 15;
-  const slots = [];
+  const rawSlots = [];
 
   for (const range of workingRanges) {
     const openMins = parseTimeToMinutes(range.open);
@@ -2490,21 +2496,61 @@ const calculateResourceAvailability = async (resourceId, date, serviceId) => {
       const end = start + durationMinutes;
       const overlaps = busyRanges.some(b => start < b.end && end > b.start);
       if (!overlaps) {
-        slots.push(formatMinutesToTime(start));
+        rawSlots.push(start);
       }
     }
   }
 
-  return slots;
+  // === Anti-Buchi (Gap Minimization) ===
+  const optimizedSlots = [];
+  
+  for (const start of rawSlots) {
+    const end = start + durationMinutes;
+
+    let maxEndBefore = null;
+    let minStartAfter = null;
+
+    for (const range of workingRanges) {
+      const openMins = parseTimeToMinutes(range.open);
+      const closeMins = parseTimeToMinutes(range.close);
+      if (start >= openMins && end <= closeMins) {
+        maxEndBefore = openMins;
+        minStartAfter = closeMins;
+      }
+    }
+
+    for (const b of busyRanges) {
+      if (b.end <= start && (!maxEndBefore || b.end > maxEndBefore)) maxEndBefore = b.end;
+      if (b.start >= end && (!minStartAfter || b.start < minStartAfter)) minStartAfter = b.start;
+    }
+
+    const gapBefore = maxEndBefore !== null ? start - maxEndBefore : 0;
+    const gapAfter = minStartAfter !== null ? minStartAfter - end : 0;
+
+    // Evitiamo slot che lasciano esattamente 15 o 30 minuti buchi
+    const badGapBefore = gapBefore === 15 || gapBefore === 30;
+    const badGapAfter = gapAfter === 15 || gapAfter === 30;
+
+    if (!badGapBefore && !badGapAfter) {
+      optimizedSlots.push(formatMinutesToTime(start));
+    }
+  }
+
+  // Se l'ottimizzazione elimina tutto, ritorniamo i rawSlots per non bloccare le prenotazioni
+  if (optimizedSlots.length === 0 && rawSlots.length > 0) {
+    return rawSlots.map(formatMinutesToTime);
+  }
+
+  return optimizedSlots;
 };
 
 app.get('/api/resources/:id/availability', async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, service_id } = req.query;
+    const { date, service_id, addon_id } = req.query;
     if (!date || !service_id) return res.status(400).json({ error: 'date e service_id sono obbligatori' });
-    const slots = await calculateResourceAvailability(id, date, service_id);
-    res.json({ resource_id: id, date, service_id, slots });
+    const slots = await calculateResourceAvailability(id, date, service_id, addon_id);
+    res.json({ resource_id: id, date, service_id, addon_id, slots });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2536,7 +2582,7 @@ app.get('/api/appointments/:id', async (req, res) => {
 // POST crea un nuovo appuntamento (pubblica, usata dal booking del cliente)
 app.post('/api/appointments', async (req, res) => {
   try {
-    const { restaurant_id, resource_id, service_id, customer_name, customer_phone, customer_email, date, time, notes } = req.body;
+    const { restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes } = req.body;
     if (!restaurant_id || !resource_id || !service_id || !customer_name || !date || !time) {
       return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     }
@@ -2544,17 +2590,35 @@ app.post('/api/appointments', async (req, res) => {
     const service = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [service_id, restaurant_id]);
     if (!service) return res.status(404).json({ error: 'Servizio non trovato' });
 
-    // Ricontrolla che lo slot richiesto sia ancora libero (evita doppie prenotazioni in corsa)
-    const availableSlots = await calculateResourceAvailability(resource_id, date, service_id);
+    let finalName = service.name;
+    let finalDuration = service.duration_minutes;
+    let finalPrice = service.price;
+
+    if (addon_id) {
+      const addon = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [addon_id, restaurant_id]);
+      if (addon) {
+        finalName = `${service.name} + ${addon.name}`;
+        finalDuration += addon.duration_minutes || 0;
+        finalPrice += addon.price || 0;
+      }
+    }
+
+    // Ricontrolla che lo slot richiesto sia ancora libero (usa finalDuration simulando un service fittizio o passando la durata. Wait: calculateResourceAvailability usa il serviceId!)
+    // Passiamo solo service_id e lui usa la durata di quel servizio. Per essere precisi con l'anti-buchi combinato, l'anti-buchi non lo sa dell'addon in questo momento.
+    // Ma l'anti-buchi lo usiamo nel frontend. Nel backend il controllo è di base. Se vogliamo esser rigorosi, bypassiamo il controllo rigido backend se c'è un addon, o modifichiamo l'API per prendere la durata desiderata.
+    // Dato che stiamo inserendo, calcoliamo i busy ranges direttamente qui per sicurezza o saltiamo se l'anti-buchi frontend l'ha convalidato.
+    // Per semplicità, il frontend manderà il service_id principale e il backend inserirà la finalDuration. 
+    // Ricontrolla che lo slot richiesto sia ancora libero
+    const availableSlots = await calculateResourceAvailability(resource_id, date, service_id, addon_id);
     if (!availableSlots.includes(time)) {
-      return res.status(409).json({ error: 'Lo slot richiesto non è più disponibile' });
+      return res.status(409).json({ error: 'Lo slot richiesto o l\\'add-on si sovrappone con un altro appuntamento' });
     }
 
     const id = 'apt-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
       `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, timestamp)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [id, restaurant_id, resource_id, service_id, service.name, service.duration_minutes, service.price, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', Date.now()]
+      [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', Date.now()]
     );
 
     // Registra o aggiorna il cliente nel CRM, cosi' la lista clienti si popola da sola con le prenotazioni
