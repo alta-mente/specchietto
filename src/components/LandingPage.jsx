@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Calendar, Users, Percent, ShieldCheck, Smartphone, Clock, Check,
-  ArrowRight, Menu, X, Sparkles, Mail
+  ArrowRight, Menu, X, Sparkles, Mail, BarChart2, CreditCard, MessageCircle, Star
 } from 'lucide-react';
 import { getBackendUrl } from '../services/backendUrl';
 
@@ -172,6 +172,62 @@ export const LandingPage = ({ onOpenLogin }) => {
           <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>SPA & Benessere</div>
           <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Nail Artist</div>
           <div className="glass-card" style={{ padding: '12px 24px', fontSize: '1.05rem', fontWeight: '600', color: '#fff', background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))' }}>Centri Massaggi</div>
+        </div>
+      </section>
+
+      {/* FEATURES SHOWCASE */}
+      <section style={{ position: 'relative', zIndex: 10, padding: '60px 4% 120px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '64px' }}>
+          <h2 style={{ fontSize: '2.5rem', fontWeight: '800', margin: '0 0 16px 0', letterSpacing: '-1px' }}>Tutto ciò che ti serve, e oltre</h2>
+          <p style={{ fontSize: '1.15rem', color: '#94a3b8', maxWidth: '600px', margin: '0 auto' }}>Dimentica i software base. Specchietto include le funzionalità più richieste dai top saloni.</p>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+          
+          <div className="glass-card" style={{ padding: '32px', borderLeft: '4px solid #3b82f6' }}>
+            <BarChart2 size={32} color="#3b82f6" style={{ marginBottom: '20px' }} />
+            <h3 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '12px' }}>Business Intelligence</h3>
+            <p style={{ color: '#94a3b8', lineHeight: '1.6', margin: '0 0 16px 0' }}>Monitora i tuoi profitti in tempo reale. Scopri quali servizi generano più margine, visualizza le fasce orarie di punta con le nostre heatmap e traccia le performance di ogni membro dello staff.</p>
+            <ul style={{ color: '#cbd5e1', paddingLeft: '20px', margin: 0, fontSize: '0.95rem' }}>
+              <li style={{ marginBottom: '8px' }}>Ricavi per servizio</li>
+              <li style={{ marginBottom: '8px' }}>Classifiche operatori</li>
+              <li>Analisi retention clienti</li>
+            </ul>
+          </div>
+
+          <div className="glass-card" style={{ padding: '32px', borderLeft: '4px solid #10b981' }}>
+            <Users size={32} color="#10b981" style={{ marginBottom: '20px' }} />
+            <h3 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '12px' }}>Gestione Avanzata Team</h3>
+            <p style={{ color: '#94a3b8', lineHeight: '1.6', margin: '0 0 16px 0' }}>Ogni operatore è indipendente. Assegna a ciascuno i servizi specifici che può svolgere, gestisci i suoi orari di lavoro, turni e ferie in modo flessibile.</p>
+            <ul style={{ color: '#cbd5e1', paddingLeft: '20px', margin: 0, fontSize: '0.95rem' }}>
+              <li style={{ marginBottom: '8px' }}>Agende separate per operatore</li>
+              <li style={{ marginBottom: '8px' }}>Filtro per competenze</li>
+              <li>Sincronizzazione in tempo reale</li>
+            </ul>
+          </div>
+
+          <div className="glass-card" style={{ padding: '32px', borderLeft: '4px solid #a855f7' }}>
+            <MessageCircle size={32} color="#a855f7" style={{ marginBottom: '20px' }} />
+            <h3 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '12px' }}>Marketing & Automazioni</h3>
+            <p style={{ color: '#94a3b8', lineHeight: '1.6', margin: '0 0 16px 0' }}>Fidelizza la tua clientela e riempi i buchi in agenda senza sforzo. Il sistema lavora per te anche quando il salone è chiuso.</p>
+            <ul style={{ color: '#cbd5e1', paddingLeft: '20px', margin: 0, fontSize: '0.95rem' }}>
+              <li style={{ marginBottom: '8px' }}>Codici Sconto e Promozioni</li>
+              <li style={{ marginBottom: '8px' }}>Waitlist Automatica</li>
+              <li>Reminder SMS e WhatsApp</li>
+            </ul>
+          </div>
+
+          <div className="glass-card" style={{ padding: '32px', borderLeft: '4px solid #f59e0b' }}>
+            <CreditCard size={32} color="#f59e0b" style={{ marginBottom: '20px' }} />
+            <h3 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '12px' }}>Zero No-Show (In Arrivo)</h3>
+            <p style={{ color: '#94a3b8', lineHeight: '1.6', margin: '0 0 16px 0' }}>Presto potrai integrare la richiesta della carta di credito al momento della prenotazione, riducendo drasticamente le disdette all'ultimo minuto.</p>
+            <ul style={{ color: '#cbd5e1', paddingLeft: '20px', margin: 0, fontSize: '0.95rem' }}>
+              <li style={{ marginBottom: '8px' }}>Tokenizzazione carte (Stripe)</li>
+              <li style={{ marginBottom: '8px' }}>Depositi anticipati su servizi costosi</li>
+              <li>Penali automatiche</li>
+            </ul>
+          </div>
+          
         </div>
       </section>
 
