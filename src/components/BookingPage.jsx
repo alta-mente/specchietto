@@ -167,6 +167,9 @@ export const BookingPage = ({ businessSlug }) => {
     if (step === 'datetime') loadSlots();
   }, [step, loadSlots]);
 
+  const searchParams = new URLSearchParams(window.location.search);
+  const source = searchParams.get('source') || 'direct';
+
   const sortedTimes = Object.keys(slotMap).sort();
   const grouped = {
     Mattina: sortedTimes.filter(t => t < '13:00'),
@@ -193,7 +196,8 @@ export const BookingPage = ({ businessSlug }) => {
         customer_email: customerEmail.trim(),
         date,
         time: selectedTime,
-        notes: notes.trim()
+        notes: notes.trim(),
+        source
       })
     });
     const data = await res.json();

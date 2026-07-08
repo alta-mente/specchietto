@@ -74,6 +74,17 @@ export const OverviewTab = ({ sync }) => {
       else returningCustomers++;
     });
 
+    // --- 6. Booking Sources (Social Conversions) ---
+    const sourceMap = {};
+    validAppointments.forEach(app => {
+      const source = app.source || 'direct';
+      sourceMap[source] = (sourceMap[source] || 0) + 1;
+    });
+    const sources = Object.entries(sourceMap).map(([name, value]) => ({ 
+      name: name.charAt(0).toUpperCase() + name.slice(1), 
+      value 
+    }));
+
     const upcoming = todayAppointments
       .filter(a => a.status === 'pending' || a.status === 'accepted' || a.status === 'arrived')
       .sort((a, b) => a.time.localeCompare(b.time))
@@ -88,6 +99,7 @@ export const OverviewTab = ({ sync }) => {
       revenueByService,
       staffPerformance,
       peakHours,
+      sources,
       retention: [
         { name: 'Nuovi (1 App.)', value: newCustomers },
         { name: 'Ricorrenti (2+)', value: returningCustomers }
@@ -157,6 +169,49 @@ export const OverviewTab = ({ sync }) => {
                   <Tooltip />
                   <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Appuntamenti" />
                 </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Dati insufficienti</div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', color: '#0f172a' }}>Provenienza Prenotazioni</h3>
+          {stats.sources.length > 0 ? (
+            <div style={{ height: '250px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={stats.sources} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
+                    {stats.sources.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val) => `${val} appuntamenti`} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Dati insufficienti</div>
+          )}
+        </div>
+
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', color: '#0f172a' }}>Fidelizzazione Clienti</h3>
+          {stats.retention.some(r => r.value > 0) ? (
+            <div style={{ height: '250px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={stats.retention} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                    <Cell fill="#10b981" />
+                    <Cell fill="#3b82f6" />
+                  </Pie>
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           ) : (

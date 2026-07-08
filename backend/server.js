@@ -2631,7 +2631,7 @@ app.get('/api/appointments/:id', async (req, res) => {
 // POST crea un nuovo appuntamento (pubblica, usata dal booking del cliente)
 app.post('/api/appointments', async (req, res) => {
   try {
-    const { restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes } = req.body;
+    const { restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes, source } = req.body;
     if (!restaurant_id || !resource_id || !service_id || !customer_name || !date || !time) {
       return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     }
@@ -2652,11 +2652,6 @@ app.post('/api/appointments', async (req, res) => {
       }
     }
 
-    // Ricontrolla che lo slot richiesto sia ancora libero (usa finalDuration simulando un service fittizio o passando la durata. Wait: calculateResourceAvailability usa il serviceId!)
-    // Passiamo solo service_id e lui usa la durata di quel servizio. Per essere precisi con l'anti-buchi combinato, l'anti-buchi non lo sa dell'addon in questo momento.
-    // Ma l'anti-buchi lo usiamo nel frontend. Nel backend il controllo è di base. Se vogliamo esser rigorosi, bypassiamo il controllo rigido backend se c'è un addon, o modifichiamo l'API per prendere la durata desiderata.
-    // Dato che stiamo inserendo, calcoliamo i busy ranges direttamente qui per sicurezza o saltiamo se l'anti-buchi frontend l'ha convalidato.
-    // Per semplicità, il frontend manderà il service_id principale e il backend inserirà la finalDuration. 
     // Ricontrolla che lo slot richiesto sia ancora libero
     const availableSlots = await calculateResourceAvailability(resource_id, date, service_id, addon_id);
     if (!availableSlots.includes(time)) {
@@ -2665,9 +2660,9 @@ app.post('/api/appointments', async (req, res) => {
 
     const id = 'apt-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
-      `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', Date.now()]
+      `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, source, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', source || 'direct', Date.now()]
     );
 
     // Registra o aggiorna il cliente nel CRM, cosi' la lista clienti si popola da sola con le prenotazioni
