@@ -184,7 +184,7 @@ const ResourceAuthModal = ({ resource, onClose }) => {
   );
 };
 
-const ResourcesTab = ({ sync }) => {
+export const ResourcesTab = ({ sync }) => {
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
 
