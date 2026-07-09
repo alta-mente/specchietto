@@ -165,8 +165,8 @@ export const ClientsTab = ({ sync }) => {
             
             {/* Azioni Rapide */}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <a href={\`tel:\${selectedCustomer.phone}\`} style={{ flex: 1, padding: '12px', textAlign: 'center', backgroundColor: '#f0fdf4', color: '#166534', borderRadius: '12px', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' }}>Chiama</a>
-              <a href={\`https://wa.me/\${selectedCustomer.phone.replace(/\\D/g,'')}\`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '12px', textAlign: 'center', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '12px', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' }}>WhatsApp</a>
+              <a href={`tel:${selectedCustomer.phone}`} style={{ flex: 1, padding: '12px', textAlign: 'center', backgroundColor: '#f0fdf4', color: '#166534', borderRadius: '12px', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' }}>Chiama</a>
+              <a href={`https://wa.me/${selectedCustomer.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '12px', textAlign: 'center', backgroundColor: '#ecfdf5', color: '#059669', borderRadius: '12px', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' }}>WhatsApp</a>
               <button onClick={() => toggleBlocked(selectedCustomer)} style={{ flex: 1, padding: '12px', textAlign: 'center', backgroundColor: selectedCustomer.blocked ? '#fef2f2' : '#fff', color: selectedCustomer.blocked ? '#dc2626' : '#64748b', border: '1px solid ' + (selectedCustomer.blocked ? '#fecaca' : '#e2e8f0'), borderRadius: '12px', fontWeight: '600', fontSize: '0.9rem', cursor: 'pointer' }}>
                 {selectedCustomer.blocked ? 'Sblocca' : 'Blocca'}
               </button>
