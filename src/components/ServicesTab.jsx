@@ -46,12 +46,12 @@ export const ServicesTab = ({ sync }) => {
         </button>
       </form>
 
-      {sync.services.length === 0 && (
+      {(sync.services || []).length === 0 && (
         <p style={{ color: '#475569', fontSize: '0.9rem' }}>Nessun servizio ancora. Aggiungine uno per iniziare.</p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {sync.services.map(s => (
+        {(sync.services || []).map(s => (
           <div key={s.id} style={{
             backgroundColor: '#ffffff', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', borderRadius: '10px',
             padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'

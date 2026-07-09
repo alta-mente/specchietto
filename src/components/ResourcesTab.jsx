@@ -103,17 +103,19 @@ const ResourceServicesEditor = ({ resource, sync }) => {
     setTimeout(() => setSaved(false), 1500);
   };
 
-  if (sync.services.length === 0) {
-    return <p style={{ fontSize: '0.8rem', color: '#475569', marginTop: '12px' }}>Aggiungi prima qualche servizio nella tab "Servizi".</p>;
+  if ((sync.services || []).length === 0) {
+    return <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Crea prima dei servizi per assegnarli a questa risorsa.</div>;
   }
 
   return (
     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #e2e8f0' }}>
-      <div style={{ fontSize: '0.8rem', fontWeight: '700', marginBottom: '8px', color: '#475569' }}>Servizi che può eseguire</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-        {sync.services.map(s => (
-          <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem' }}>
-            <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} />
+      <div style={{ fontSize: '0.8rem', fontWeight: '700', marginBottom: '8px', color: '#475569' }}>Servizi eseguibili ({selected.length})</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+        {(sync.services || []).map(s => (
+          <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '8px', backgroundColor: selected.includes(s.id) ? '#f8fafc' : 'transparent', border: selected.includes(s.id) ? '1px solid #cbd5e1' : '1px solid transparent' }}>
+            <input
+              type="checkbox"
+              checked={selected.includes(s.id)} onChange={() => toggle(s.id)} />
             {s.name}
           </label>
         ))}
@@ -213,21 +215,30 @@ export const ResourcesTab = ({ sync }) => {
         </button>
       </form>
 
-      {sync.resources.length === 0 && (
-        <p style={{ color: '#475569', fontSize: '0.9rem' }}>Nessun operatore ancora. Aggiungine uno per iniziare.</p>
+      {(sync.resources || []).length === 0 && (
+        <p style={{ color: '#475569', fontSize: '0.9rem' }}>Nessuna risorsa ancora. Aggiungi il tuo team o le postazioni.</p>
       )}
 
-      {sync.resources.map(resource => (
+      {(sync.resources || []).map(resource => (
         <div key={resource.id} style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <strong>{resource.name}</strong>
-            <button onClick={() => setAuthResource(resource)} style={{ border: 'none', background: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem', marginRight: '16px' }}>Crea Accesso App</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: resource.color || '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
+                {resource.name?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <strong style={{ fontSize: '1.1rem' }}>{resource.name}</strong>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setAuthResource(resource)} style={{ border: 'none', background: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem' }}>Crea Accesso</button>
               <button
-              onClick={() => sync.deleteResource(resource.id)}
-              style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              Elimina
-            </button>
+                onClick={() => sync.deleteResource(resource.id)}
+                style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                Elimina
+              </button>
+            </div>
           </div>
           {authResource?.id === resource.id && <ResourceAuthModal resource={resource} onClose={() => setAuthResource(null)} />}
           <ResourceServicesEditor resource={resource} sync={sync} />
