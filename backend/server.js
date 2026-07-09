@@ -1716,7 +1716,7 @@ app.get('/api/restaurants/:idOrSlug', async (req, res) => {
     }
     
     // Fetch public settings for the restaurant (like stripe_enabled)
-    const settingsRows = await dbAll('SELECT key, value FROM settings WHERE restaurant_id = ? AND key IN ("stripe_enabled", "stripe_type", "stripe_amount")', [row.id]);
+    const settingsRows = await dbAll("SELECT key, value FROM settings WHERE restaurant_id = ? AND key IN ('stripe_enabled', 'stripe_type', 'stripe_amount')", [row.id]);
     const settings = settingsRows.reduce((acc, s) => { acc[s.key] = s.value; return acc; }, {});
     
     res.json({ ...row, settings });
