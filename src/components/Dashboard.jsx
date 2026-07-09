@@ -6,10 +6,11 @@ import { ServicesTab } from './ServicesTab';
 import { AgendaTab } from './AgendaTab';
 import { ClientsTab } from './ClientsTab';
 import { OverviewTab } from './OverviewTab';
+import { ReviewsTab } from './ReviewsTab';
 import { SettingsTab } from './SettingsTab';
 import { MarketingTab } from './MarketingTab';
 import { SuperAdminTab } from './SuperAdminTab';
-import { LayoutDashboard, Calendar, Users, Scissors, Settings, Megaphone, LogOut, Briefcase, ChevronDown, ExternalLink, ShieldAlert, Lock } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Scissors, Settings, Megaphone, LogOut, Briefcase, ChevronDown, ExternalLink, ShieldAlert, Lock, Star } from 'lucide-react';
 
 const TABS = [
   { id: 'overview', label: 'Panoramica', icon: <LayoutDashboard size={20} /> },
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'clients', label: 'Clienti', icon: <Users size={20} /> },
   { id: 'resources', label: 'Team', icon: <Briefcase size={20} /> },
   { id: 'services', label: 'Servizi', icon: <Scissors size={20} /> },
+  { id: 'reviews', label: 'Recensioni', icon: <Star size={20} /> },
   { id: 'marketing', label: 'Marketing', icon: <Megaphone size={20} /> },
   { id: 'settings', label: 'Impostazioni', icon: <Settings size={20} /> }
 ];
@@ -319,6 +321,7 @@ export const Dashboard = ({ sync, onLogout }) => {
           {activeTab === 'clients' && <ClientsTab sync={sync} />}
           {activeTab === 'resources' && <ResourcesTab sync={sync} />}
           {activeTab === 'services' && <ServicesTab sync={sync} />}
+          {activeTab === 'reviews' && <ReviewsTab sync={sync} />}
           {activeTab === 'marketing' && sync.restaurant?.plan !== 'starter' && <MarketingTab sync={sync} />}
           {activeTab === 'settings' && <SettingsTab sync={sync} />}
           {activeTab === 'superadmin' && <SuperAdminTab sync={sync} />}

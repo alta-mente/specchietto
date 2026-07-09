@@ -3,6 +3,7 @@ import { useSpecchiettoSync } from './hooks/useSpecchiettoSync';
 import { LoginPortal } from './components/LoginPortal';
 import { Dashboard } from './components/Dashboard';
 import { BookingPage } from './components/BookingPage';
+import { ReviewPage } from './components/ReviewPage';
 import { LandingPage } from './components/LandingPage';
 import { MobileApp } from './components/MobileApp';
 import { Capacitor } from '@capacitor/core';
@@ -13,6 +14,10 @@ const getView = () => {
     const query = hash.split('?')[1] || '';
     const params = new URLSearchParams(query);
     return { view: 'booking', businessSlug: params.get('business') || 'salone-prova' };
+  }
+  if (hash.startsWith('#/leave-review/')) {
+    const appointmentId = hash.split('#/leave-review/')[1];
+    return { view: 'review', appointmentId };
   }
   if (hash.startsWith('#/admin')) return { view: 'admin' };
   return { view: 'landing' };
@@ -27,6 +32,10 @@ function App() {
         <BookingPage businessSlug={businessSlug} />
       </div>
     );
+  }
+
+  if (view === 'review') {
+    return <ReviewPage appointmentId={getView().appointmentId} />;
   }
 
   if (view === 'admin') {

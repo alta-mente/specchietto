@@ -20,6 +20,7 @@ export const useSpecchiettoSync = () => {
   const [settings, setSettings] = useState({});
   const [coupons, setCoupons] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
+  const [reviews, setReviews] = useState([]);
 
   const authHeaders = useCallback(() => (
     token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -127,6 +128,25 @@ export const useSpecchiettoSync = () => {
     if (res.ok) setCoupons(await res.json());
   }, [restaurantId]);
 
+  const refreshReviews = useCallback(async () => {
+    if (!restaurantId || !token) return;
+    try {
+      const res = await fetch(`${backendUrl}/api/reviews?restaurant_id=${restaurantId}`, { headers: authHeaders() });
+      if (res.ok) setReviews(await res.json());
+    } catch(e) {}
+  }, [restaurantId, token, authHeaders]);
+  
+  const replyReview = useCallback(async (id, response) => {
+    try {
+      const res = await fetch(`${backendUrl}/api/reviews/${id}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ response })
+      });
+      if (res.ok) await refreshReviews();
+    } catch(e) {}
+  }, [authHeaders, refreshReviews]);
+  
   const refreshWaitlist = useCallback(async () => {
     if (!restaurantId || !token) return;
     const res = await fetch(`${backendUrl}/api/waitlist?restaurant_id=${restaurantId}`, {
@@ -419,6 +439,9 @@ export const useSpecchiettoSync = () => {
     deleteCoupon,
     waitlist,
     refreshWaitlist,
+    reviews,
+    refreshReviews,
+    replyReview,
     createWaitlist,
     updateWaitlistStatus,
     deleteWaitlist,

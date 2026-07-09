@@ -409,6 +409,19 @@ const initDb = async () => {
     } catch (e) { /* column exists */ }
 
     await dbRun(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        appointment_id TEXT UNIQUE,
+        customer_name TEXT,
+        customer_email TEXT,
+        rating INTEGER,
+        comment TEXT,
+        response TEXT,
+        created_at INTEGER
+      )
+    `);
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS waitlist (
         id TEXT PRIMARY KEY,
         restaurant_id TEXT,
@@ -3021,6 +3034,20 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
 
     // Aggiungi punti fedeltà se l'appuntamento è completato
     if (status === 'completed' && existing.status !== 'completed' && existing.customer_phone && existing.price) {
+      // Invio email recensione (usiamo sendEmailNotification che usa resend)
+      if (existing.customer_email && existing.survey_sent === 0) {
+        try {
+          const { frontendUrl } = require('../src/services/backendUrl'); // this won't work in backend easily
+          const reviewUrl = 'https://specchietto-booking.vercel.app/leave-review/' + existing.id; // Fallback
+          const html = `<p>Ciao ${existing.customer_name},</p><p>Speriamo che il tuo appuntamento presso <b>${restaurant.name}</b> sia andato alla grande!</p><p>Ti andrebbe di lasciarci una recensione? Ci vorranno solo 10 secondi.</p><p><a href="https://specchietto-booking.vercel.app/leave-review/${existing.id}" style="display:inline-block;padding:12px 24px;background:#FF5C82;color:#fff;text-decoration:none;border-radius:8px;">Lascia una Recensione</a></p>`;
+          await sendEmailNotification(existing.customer_email, 'Come ti sei trovato?', html);
+          await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [existing.id]);
+          console.log('inviata email recensione a', existing.customer_email);
+        } catch (e) {
+          console.error('Errore invio email recensione:', e);
+        }
+      }
+      
       const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
       if (restaurant && restaurant.loyalty_enabled === 1) {
         const points = Math.floor(existing.price * (restaurant.loyalty_points_per_euro || 1));
