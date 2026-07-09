@@ -3052,12 +3052,11 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
       );
     }
 
-    // Aggiungi punti fedeltà se l'appuntamento è completato
-    if (status === 'completed' && existing.status !== 'completed' && existing.customer_phone && existing.price) {
-      // Usa direttamente il nostro sistema di invio
+    if (status === 'completed' && existing.status !== 'completed') {
+      
+      // 1. Invia email recensione immediatamente (indipendentemente da telefono o prezzo)
       if (existing.customer_email && existing.survey_sent === 0) {
         try {
-          // Fallback a sendReviewEmail
           const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
           const googleLink = restaurant?.google_review_link || null;
           await sendReviewEmail(existing, restaurant, googleLink);
@@ -3066,15 +3065,18 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
           console.error('Errore invio email recensione dal checkout:', e);
         }
       }
-      
-      const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
-      if (restaurant && restaurant.loyalty_enabled === 1) {
-        const points = Math.floor(existing.price * (restaurant.loyalty_points_per_euro || 1));
-        if (points > 0) {
-          await dbRun(
-            'UPDATE customers SET loyalty_points = loyalty_points + ? WHERE phone = ? AND restaurant_id = ?',
-            [points, existing.customer_phone, existing.restaurant_id]
-          );
+
+      // 2. Aggiungi punti fedeltà se ci sono telefono e prezzo
+      if (existing.customer_phone && existing.price) {
+        const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
+        if (restaurant && restaurant.loyalty_enabled === 1) {
+          const points = Math.floor(existing.price * (restaurant.loyalty_points_per_euro || 1));
+          if (points > 0) {
+            await dbRun(
+              'UPDATE customers SET loyalty_points = loyalty_points + ? WHERE phone = ? AND restaurant_id = ?',
+              [points, existing.customer_phone, existing.restaurant_id]
+            );
+          }
         }
       }
     }
