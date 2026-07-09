@@ -2928,6 +2928,45 @@ app.get('/api/test-email', async (req, res) => {
   }
 });
 
+// GET route per testare notifica salone e buildHtmlEmail
+app.get('/api/test-notification', async (req, res) => {
+  try {
+    const testEmail = req.query.email || 'info@altamente.it';
+    const fakeRestaurant = { name: "Test Salone", slug: "test", primary_color: "#000000" };
+    
+    // Simulate what sendSalonNotificationEmail does exactly
+    const subject = `Nuova Prenotazione: Test`;
+    const contentHtml = `<p>Test notifica salone.</p>`;
+    const htmlBody = buildHtmlEmail(subject, "Nuova Prenotazione", contentHtml, "Apri Dashboard", "https://specchietto.app", "Specchietto Notifiche", fakeRestaurant);
+
+    if (!resendClient) {
+      return res.status(400).json({ error: "Resend non configurato" });
+    }
+
+    let fromEmail = 'onboarding@resend.dev';
+    if (typeof RESEND_FROM !== 'undefined') fromEmail = RESEND_FROM;
+
+    if (fromEmail.includes('<')) {
+      const match = fromEmail.match(/<([^>]+)>/);
+      if (match && match[1]) fromEmail = match[1];
+    }
+
+    const response = await resendClient.emails.send({
+      from: `"Specchietto" <${fromEmail}>`,
+      to: testEmail,
+      subject,
+      html: htmlBody
+    });
+
+    if (response.error) throw new Error(response.error.message);
+    
+    res.json({ success: true, message: 'Notifica inviata!', info: response.data ? response.data.id : 'ok' });
+  } catch (err) {
+    console.error('Test Notifica Fallito:', err);
+    res.status(500).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
 // PUT aggiorna lo stato di un appuntamento (confermato, arrivato, completato, no-show, rifiutato...)
 app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
   try {
