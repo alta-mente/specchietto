@@ -28,14 +28,18 @@ function App() {
 
   if (view === 'booking') {
     return (
-      <div className="app-container" style={{ height: '100vh', overflow: 'auto' }}>
+      <div className="app-container" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
         <BookingPage businessSlug={businessSlug} />
       </div>
     );
   }
 
   if (view === 'review') {
-    return <ReviewPage appointmentId={getView().appointmentId} />;
+    return (
+      <div className="app-container" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
+        <ReviewPage appointmentId={getView().appointmentId} />
+      </div>
+    );
   }
 
   if (view === 'admin') {
@@ -43,7 +47,7 @@ function App() {
   }
 
   return (
-    <div className="app-container" style={{ height: '100vh', overflow: 'auto' }}>
+    <div className="app-container" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
       <LandingPage onOpenLogin={() => { window.location.hash = '#/admin'; window.location.reload(); }} />
     </div>
   );
