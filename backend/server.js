@@ -2912,6 +2912,38 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
+// GET route per testare la configurazione SMTP
+app.get('/api/test-email', async (req, res) => {
+  try {
+    if (!emailTransporter) {
+      return res.status(400).json({ error: 'Servizio email non configurato. Controlla le variabili d\'ambiente (SMTP_HOST, SMTP_USER, SMTP_PASS).' });
+    }
+    const testTo = req.query.email || process.env.SMTP_USER;
+    if (!testTo) {
+      return res.status(400).json({ error: 'Nessuna email di destinazione specificata. Passa ?email=tuaemail@dominio.it' });
+    }
+    
+    let fromEmail = process.env.SMTP_USER || 'noreply@specchietto.app';
+    if (process.env.SMTP_FROM) { 
+      const match = process.env.SMTP_FROM.match(/<([^>]+)>/); 
+      if (match && match[1]) fromEmail = match[1]; 
+    }
+
+    const info = await emailTransporter.sendMail({
+      from: `"Specchietto Test" <${fromEmail}>`,
+      to: testTo,
+      subject: 'Test Invio Email Specchietto',
+      text: 'Se stai leggendo questa mail, il server SMTP è configurato correttamente!',
+      html: '<p>Se stai leggendo questa mail, il <strong>server SMTP</strong> è configurato correttamente! 🎉</p>'
+    });
+    
+    res.json({ success: true, message: 'Email inviata con successo!', info: info.messageId });
+  } catch (err) {
+    console.error('Test Email Fallito:', err);
+    res.status(500).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
 // PUT aggiorna lo stato di un appuntamento (confermato, arrivato, completato, no-show, rifiutato...)
 app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
   try {
