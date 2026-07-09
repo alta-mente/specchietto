@@ -74,17 +74,7 @@ const TenantSwitcher = ({ sync }) => {
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
-        
-      {toast && (
-        <div className="animate-fade-up" style={{
-          position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#10b981', color: '#fff',
-          padding: '16px 24px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(16, 185, 129, 0.4)',
-          display: 'flex', alignItems: 'center', gap: '12px', zIndex: 9999, fontWeight: '600'
-        }}>
-          <span>🔔</span> {toast}
         </div>
-      )}
-    </div>
       )}
 
       <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>Oppure crea una nuova attività:</p>
@@ -328,6 +318,15 @@ export const Dashboard = ({ sync, onLogout }) => {
         </div>
       </main>
       
+      {toast && (
+        <div className="animate-fade-up" style={{
+          position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#10b981', color: '#fff',
+          padding: '16px 24px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(16, 185, 129, 0.4)',
+          display: 'flex', alignItems: 'center', gap: '12px', zIndex: 9999, fontWeight: '600'
+        }}>
+          <span>🔔</span> {toast}
+        </div>
+      )}
     </div>
   );
 };
