@@ -176,6 +176,28 @@ export const useSpecchiettoSync = () => {
     return data.url;
   }, [restaurantId, authHeaders]);
 
+  // Avvia (o riprende) l'onboarding Stripe Connect del salone: ritorna l'URL a cui reindirizzare l'utente.
+  const startStripeConnectOnboarding = useCallback(async () => {
+    const res = await fetch(`${backendUrl}/api/stripe/connect/onboard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ restaurant_id: restaurantId })
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || "Errore nell'avvio del collegamento con Stripe.");
+    return data.url;
+  }, [restaurantId, authHeaders]);
+
+  // Stato del collegamento Stripe Connect del salone (connesso / onboarding completato).
+  const getStripeConnectStatus = useCallback(async () => {
+    const res = await fetch(`${backendUrl}/api/stripe/connect/status?restaurant_id=${restaurantId}`, { headers: authHeaders() });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || 'Errore nel recupero dello stato Stripe.');
+    return data;
+  }, [restaurantId, authHeaders]);
+
   const refreshReviews = useCallback(async () => {
     if (!restaurantId || !token) return;
     try {
@@ -488,6 +510,8 @@ export const useSpecchiettoSync = () => {
     updateResource,
     setResourcePermissions,
     createStripePaymentLink,
+    startStripeConnectOnboarding,
+    getStripeConnectStatus,
     createService,
     deleteService,
     setResourceHours,

@@ -89,6 +89,11 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyn
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       await handleStripeCheckoutCompleted(session);
+    } else if (event.type === 'account.updated') {
+      // Evento "Connect": arriva quando un salone completa/aggiorna l'onboarding del proprio account Stripe.
+      const account = event.data.object;
+      const onboarded = !!account.charges_enabled;
+      await dbRun('UPDATE restaurants SET stripe_onboarded = ? WHERE stripe_account_id = ?', [onboarded ? 1 : 0, account.id]);
     }
     res.json({ received: true });
   } catch (err) {
@@ -222,6 +227,11 @@ const initDb = async () => {
     } catch (err) {
       // Column already exists
     }
+
+    // Stripe Connect: ogni salone collega il proprio account Stripe, così i pagamenti
+    // dei suoi clienti vanno direttamente a lui e non all'account della piattaforma.
+    try { await dbRun(`ALTER TABLE restaurants ADD COLUMN stripe_account_id TEXT`); } catch (err) { /* column exists */ }
+    try { await dbRun(`ALTER TABLE restaurants ADD COLUMN stripe_onboarded INTEGER DEFAULT 0`); } catch (err) { /* column exists */ }
 
     // 3. Recreate settings and devices tables to support composite primary keys
     const settingsColumns = await dbAll("PRAGMA table_info(settings)");
@@ -3221,6 +3231,84 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   }
 });
 
+// --- STRIPE CONNECT (ogni salone collega il proprio account, per ricevere i pagamenti direttamente) ---
+
+// Avvia (o riprende) l'onboarding Stripe Express del salone. Solo il titolare/super_admin.
+app.post('/api/stripe/connect/onboard', requireAuth, async (req, res) => {
+  try {
+    if (!stripeClient) return res.status(400).json({ error: 'I pagamenti online non sono al momento disponibili sul server.' });
+
+    const { restaurant_id } = req.body;
+    if (!restaurant_id) return res.status(400).json({ error: 'restaurant_id obbligatorio' });
+    if (!checkScope(req, res, restaurant_id)) return;
+    if (req.user.role === 'staff') return res.status(403).json({ error: 'Solo il titolare può collegare Stripe.' });
+
+    const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+    if (!restaurant) return res.status(404).json({ error: 'Salone non trovato' });
+
+    let accountId = restaurant.stripe_account_id;
+
+    if (!accountId) {
+      const adminUser = await dbGet('SELECT email FROM users WHERE restaurant_id = ? AND role = "merchant"', [restaurant_id]);
+      const account = await stripeClient.accounts.create({
+        type: 'express',
+        country: 'IT',
+        email: adminUser?.email || undefined,
+        business_profile: { name: restaurant.name || undefined },
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
+      });
+      accountId = account.id;
+      await dbRun('UPDATE restaurants SET stripe_account_id = ? WHERE id = ?', [accountId, restaurant_id]);
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app';
+    const accountLink = await stripeClient.accountLinks.create({
+      account: accountId,
+      refresh_url: `${frontendUrl}/#/admin`,
+      return_url: `${frontendUrl}/#/admin`,
+      type: 'account_onboarding'
+    });
+
+    res.json({ url: accountLink.url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verifica lo stato di collegamento Stripe del salone (aggiorna anche il flag stripe_onboarded)
+app.get('/api/stripe/connect/status', requireAuth, async (req, res) => {
+  try {
+    const restaurant_id = req.query.restaurant_id;
+    if (!restaurant_id) return res.status(400).json({ error: 'restaurant_id obbligatorio' });
+    if (!checkScope(req, res, restaurant_id)) return;
+
+    const restaurant = await dbGet('SELECT stripe_account_id, stripe_onboarded FROM restaurants WHERE id = ?', [restaurant_id]);
+    if (!restaurant) return res.status(404).json({ error: 'Salone non trovato' });
+
+    if (!restaurant.stripe_account_id) {
+      return res.json({ connected: false, onboarded: false });
+    }
+
+    if (!stripeClient) {
+      return res.json({ connected: true, onboarded: restaurant.stripe_onboarded === 1 });
+    }
+
+    try {
+      const account = await stripeClient.accounts.retrieve(restaurant.stripe_account_id);
+      const onboarded = !!account.charges_enabled;
+      if ((onboarded ? 1 : 0) !== restaurant.stripe_onboarded) {
+        await dbRun('UPDATE restaurants SET stripe_onboarded = ? WHERE id = ?', [onboarded ? 1 : 0, restaurant_id]);
+      }
+      res.json({ connected: true, onboarded });
+    } catch (stripeErr) {
+      // L'account Stripe potrebbe essere stato eliminato lato Stripe: segnaliamo comunque lo stato noto
+      res.json({ connected: true, onboarded: restaurant.stripe_onboarded === 1 });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- STRIPE (acconti prenotazione online + link di pagamento dalla cassa) ---
 
 class AppointmentCreationError extends Error {
@@ -3329,9 +3417,13 @@ app.post('/api/stripe/create-booking-session', async (req, res) => {
       return res.status(400).json({ error: "Importo dell'acconto non configurato correttamente." });
     }
 
+    const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+    if (!restaurant?.stripe_account_id || !restaurant?.stripe_onboarded) {
+      return res.status(400).json({ error: 'Questo salone non ha ancora collegato il proprio account Stripe per ricevere pagamenti online.' });
+    }
+
     const created = await createAppointmentRecord({ ...req.body, has_guarantee: true, depositAmount, skipCustomerEmail: true });
 
-    const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
     const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app';
 
     const session = await stripeClient.checkout.sessions.create({
@@ -3349,7 +3441,7 @@ app.post('/api/stripe/create-booking-session', async (req, res) => {
       success_url: `${frontendUrl}/#/conferma-pagamento/${created.id}`,
       cancel_url: `${frontendUrl}/#/prenota?business=${restaurant?.slug || ''}`,
       metadata: { kind: 'booking_deposit', appointment_id: created.id, restaurant_id }
-    });
+    }, { stripeAccount: restaurant.stripe_account_id });
 
     res.json({ url: session.url, appointment_id: created.id });
   } catch (err) {
@@ -3372,6 +3464,9 @@ app.post('/api/stripe/create-payment-link', requireAuth, async (req, res) => {
     if (!total_amount || total_amount <= 0) return res.status(400).json({ error: 'Importo non valido' });
 
     const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+    if (!restaurant?.stripe_account_id || !restaurant?.stripe_onboarded) {
+      return res.status(400).json({ error: 'Questo salone non ha ancora collegato il proprio account Stripe per ricevere pagamenti online.' });
+    }
     const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app';
 
     const session = await stripeClient.checkout.sessions.create({
@@ -3389,7 +3484,7 @@ app.post('/api/stripe/create-payment-link', requireAuth, async (req, res) => {
       success_url: `${frontendUrl}/#/pagamento-completato`,
       cancel_url: `${frontendUrl}/#/pagamento-annullato`,
       metadata: { kind: 'pos_payment', appointment_id, restaurant_id, items: JSON.stringify(items || []), discount_code: discount_code || '' }
-    });
+    }, { stripeAccount: restaurant.stripe_account_id });
 
     res.json({ url: session.url });
   } catch (err) {
