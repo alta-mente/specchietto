@@ -120,7 +120,7 @@ export const ClientsTab = ({ sync }) => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#e0f2fe', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>
-                      {c.name.charAt(0).toUpperCase()}
+                      {(c.name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <div style={{ fontWeight: '700', fontSize: '1.1rem', color: '#0f172a', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -151,7 +151,7 @@ export const ClientsTab = ({ sync }) => {
           <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#e0f2fe', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold' }}>
-                {selectedCustomer.name.charAt(0).toUpperCase()}
+                {(selectedCustomer.name || '?').charAt(0).toUpperCase()}
               </div>
               <div>
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '1.25rem', color: '#0f172a' }}>{selectedCustomer.name}</h3>

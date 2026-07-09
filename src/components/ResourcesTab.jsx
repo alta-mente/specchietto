@@ -224,7 +224,7 @@ export const ResourcesTab = ({ sync }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: resource.color || '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
-                {resource.name?.charAt(0).toUpperCase()}
+                {(resource.name || '?').charAt(0).toUpperCase()}
               </div>
               <div>
                 <strong style={{ fontSize: '1.1rem' }}>{resource.name}</strong>
