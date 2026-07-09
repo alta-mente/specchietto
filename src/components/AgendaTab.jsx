@@ -7,7 +7,7 @@ const STATUS_META = {
   pending: { label: 'In attesa', bg: '#fef08a', border: '#eab308', text: '#854d0e' },
   accepted: { label: 'Confermato', bg: '#bae6fd', border: '#38bdf8', text: '#075985' },
   arrived: { label: 'Arrivato', bg: '#e9d5ff', border: '#c084fc', text: '#581c87' },
-  completed: { label: 'Completato', bg: '#bbf7d0', border: '#4ade80', text: '#14532d' },
+  completed: { label: 'Pagato', bg: '#bbf7d0', border: '#4ade80', text: '#14532d' },
   noshow: { label: 'No-show', bg: '#fecaca', border: '#f87171', text: '#7f1d1d' },
   declined: { label: 'Rifiutato', bg: '#f1f5f9', border: '#cbd5e1', text: '#475569' },
   cancelled: { label: 'Annullato', bg: '#f1f5f9', border: '#cbd5e1', text: '#475569' }
@@ -519,6 +519,16 @@ export const AgendaTab = ({ sync }) => {
             <Plus size={18} /> Aggiungi
           </button>
         </div>
+      </div>
+
+      {/* LEGEND */}
+      <div style={{ display: 'flex', gap: '16px', padding: '12px 24px', backgroundColor: '#f8fafc', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+        {Object.entries(STATUS_META).filter(([k]) => k !== 'declined' && k !== 'cancelled').map(([key, meta]) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '4px', backgroundColor: meta.bg, border: `1px solid ${meta.border}` }} />
+            <span style={{ color: '#475569', fontWeight: '500' }}>{meta.label}</span>
+          </div>
+        ))}
       </div>
 
       {/* TIMELINE GRID */}

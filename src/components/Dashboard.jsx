@@ -304,8 +304,8 @@ export const Dashboard = ({ sync, onLogout }) => {
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '32px 40px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', flex: 1, width: '100%' }}>
+      <main style={{ flex: 1, overflow: 'auto', padding: activeTab === 'agenda' ? '24px' : '32px 40px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ maxWidth: activeTab === 'agenda' ? '100%' : '1200px', margin: '0 auto', flex: 1, width: '100%' }}>
           {activeTab === 'overview' && <OverviewTab sync={sync} />}
           {activeTab === 'agenda' && <AgendaTab sync={sync} />}
           {activeTab === 'clients' && <ClientsTab sync={sync} />}
