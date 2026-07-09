@@ -391,6 +391,7 @@ const initDb = async () => {
         reason TEXT,
         survey_sent INTEGER DEFAULT 0,
         source TEXT DEFAULT 'direct',
+        has_guarantee INTEGER DEFAULT 0,
         timestamp INTEGER
       )
     `);
@@ -1712,7 +1713,12 @@ app.get('/api/restaurants/:idOrSlug', async (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Ristorante non trovato' });
     }
-    res.json(row);
+    
+    // Fetch public settings for the restaurant (like stripe_enabled)
+    const settingsRows = await dbAll('SELECT key, value FROM settings WHERE restaurant_id = ? AND key IN ("stripe_enabled", "stripe_type", "stripe_amount")', [row.id]);
+    const settings = settingsRows.reduce((acc, s) => { acc[s.key] = s.value; return acc; }, {});
+    
+    res.json({ ...row, settings });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2645,7 +2651,7 @@ app.get('/api/appointments/:id', async (req, res) => {
 // POST crea un nuovo appuntamento (pubblica, usata dal booking del cliente)
 app.post('/api/appointments', async (req, res) => {
   try {
-    const { restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes, source } = req.body;
+    const { restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes, source, has_guarantee } = req.body;
     if (!restaurant_id || !resource_id || !service_id || !customer_name || !date || !time) {
       return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     }
@@ -2674,9 +2680,9 @@ app.post('/api/appointments', async (req, res) => {
 
     const id = 'apt-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
-      `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, source, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-      [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', source || 'direct', Date.now()]
+      `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, source, has_guarantee, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', source || 'direct', has_guarantee ? 1 : 0, Date.now()]
     );
 
     // Registra o aggiorna il cliente nel CRM, cosi' la lista clienti si popola da sola con le prenotazioni

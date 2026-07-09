@@ -158,7 +158,10 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
-            <div style={{ fontSize: '1.1rem', fontWeight: '700' }}>{appointment.customer_name}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {appointment.customer_name}
+              {appointment.has_guarantee === 1 && <span title="Carta a garanzia / Deposito pagato">💳</span>}
+            </div>
             <div style={{ fontSize: '0.8rem', color: '#475569' }}>{appointment.customer_phone}</div>
           </div>
           <span style={{
@@ -199,7 +202,14 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
 
           {['pending', 'accepted'].includes(appointment.status) && (
             <div style={{ flexBasis: '100%', display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button disabled={busy} onClick={() => runAction('noshow')} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>No-show</button>
+              <button disabled={busy} onClick={() => {
+                if (appointment.has_guarantee === 1) {
+                  if (confirm(`Questo appuntamento è protetto da Stripe.\nVuoi addebitare la penale / trattenere il deposito di ${sync.settings?.stripe_amount || 15}€ sulla carta del cliente?`)) {
+                    alert('Simulazione addebito Stripe effettuata con successo.');
+                  }
+                }
+                runAction('noshow');
+              }} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>No-show</button>
               <button disabled={busy} onClick={() => runAction('declined', 'Annullato dal gestionale')} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Rifiuta</button>
             </div>
           )}
@@ -570,8 +580,9 @@ export const AgendaTab = ({ sync }) => {
                               boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
                             }}
                           >
-                            <div style={{ fontSize: '0.72rem', fontWeight: '700', color: meta.text, whiteSpace: 'nowrap', textDecoration: isClosedLike ? 'line-through' : 'none' }}>
-                              {a.time} · {a.customer_name}
+                            <div style={{ fontSize: '0.72rem', fontWeight: '700', color: meta.text, whiteSpace: 'nowrap', textDecoration: isClosedLike ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span>{a.time} · {a.customer_name}</span>
+                              {a.has_guarantee === 1 && <span style={{ fontSize: '0.65rem' }}>💳</span>}
                             </div>
                             <div style={{ fontSize: '0.66rem', color: meta.text, opacity: 0.85, whiteSpace: 'nowrap' }}>{a.service_name}</div>
                           </div>

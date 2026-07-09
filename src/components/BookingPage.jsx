@@ -180,6 +180,16 @@ export const BookingPage = ({ businessSlug }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim()) return;
+    
+    if (restaurant.settings?.stripe_enabled === '1') {
+      setStep('payment');
+      return;
+    }
+
+    await executeBooking(false);
+  };
+
+  const executeBooking = async (hasGuarantee) => {
     setSubmitting(true);
     setSubmitError('');
     const resourceId = anyPreference ? slotMap[selectedTime] : selectedResource.id;
@@ -197,7 +207,8 @@ export const BookingPage = ({ businessSlug }) => {
         date,
         time: selectedTime,
         notes: notes.trim(),
-        source
+        source,
+        has_guarantee: hasGuarantee
       })
     });
     const data = await res.json();
@@ -452,10 +463,60 @@ export const BookingPage = ({ businessSlug }) => {
               <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
               
               <button type="submit" disabled={submitting} className="glow-button" style={{ padding: '18px', fontSize: '1.1rem', marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}>
-                {submitting ? 'Elaborazione...' : 'Conferma prenotazione'} <ArrowRight size={20} />
+                {restaurant.settings?.stripe_enabled === '1' ? 'Procedi al Pagamento sicuro' : (submitting ? 'Elaborazione...' : 'Conferma prenotazione')} <ArrowRight size={20} />
               </button>
               {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{submitError}</div>}
             </form>
+          </div>
+        )}
+
+        {step === 'payment' && (
+          <div className="animate-fade-up">
+            <button onClick={() => setStep('details')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ← Modifica dati
+            </button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '8px', letterSpacing: '-0.5px' }}>Protezione Prenotazione</h2>
+            <p style={{ color: '#94a3b8', marginBottom: '24px', lineHeight: '1.5' }}>
+              {restaurant.settings?.stripe_type === 'fee' 
+                ? `Per confermare l'appuntamento, richiediamo una carta a garanzia. Non ti sarà addebitato nulla ora, ma solo in caso di mancata presentazione (Penale: ${restaurant.settings?.stripe_amount}€).`
+                : `Per confermare l'appuntamento è richiesto un acconto di ${restaurant.settings?.stripe_amount}€. L'importo verrà scalato dal totale in salone.`}
+            </p>
+
+            {/* Fake Credit Card Form */}
+            <div className="glass-card" style={{ padding: '24px', marginBottom: '32px', border: `1px solid ${brandPrimary}44` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <span style={{ fontWeight: '600', color: '#fff', letterSpacing: '2px' }}>CARTA DI CREDITO</span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <div style={{ width: '24px', height: '16px', backgroundColor: '#eb001b', borderRadius: '2px' }}></div>
+                  <div style={{ width: '24px', height: '16px', backgroundColor: '#f79e1b', borderRadius: '2px', marginLeft: '-12px', mixBlendMode: 'multiply' }}></div>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <input type="text" placeholder="0000 0000 0000 0000" style={{ ...inputStyle, letterSpacing: '2px', fontFamily: 'monospace', fontSize: '1.2rem' }} />
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <input type="text" placeholder="MM/YY" style={{ ...inputStyle, flex: 1, textAlign: 'center' }} />
+                  <input type="text" placeholder="CVC" style={{ ...inputStyle, flex: 1, textAlign: 'center' }} />
+                </div>
+                <input type="text" placeholder="NOME SULLA CARTA" style={{ ...inputStyle, textTransform: 'uppercase' }} />
+              </div>
+            </div>
+
+            <button 
+              disabled={submitting} 
+              onClick={async () => {
+                setSubmitting(true);
+                await new Promise(r => setTimeout(r, 1500));
+                await executeBooking(true);
+              }}
+              className="glow-button" 
+              style={{ padding: '18px', width: '100%', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: '#059669', boxShadow: '0 0 20px rgba(5,150,105,0.4)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              {submitting ? 'Autorizzazione...' : (restaurant.settings?.stripe_type === 'fee' ? 'Autorizza Carta' : 'Paga Acconto')} <Sparkles size={20} />
+            </button>
+            <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '1rem' }}>🔒</span> Pagamento 100% sicuro e crittografato (Test Mode)
+            </div>
           </div>
         )}
 

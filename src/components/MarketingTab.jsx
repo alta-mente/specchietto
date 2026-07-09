@@ -175,7 +175,7 @@ export const MarketingTab = ({ sync }) => {
         </form>
       </div>
 
-      <div className="admin-card" style={{ padding: '24px' }}>
+      <div className="admin-card" style={{ padding: '24px', marginBottom: '32px' }}>
         <h3 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '1.1rem' }}>Social & Link in Bio</h3>
         <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '20px' }}>Copia questi link per aggiungerli ai tuoi social. Il sistema traccerà automaticamente le prenotazioni!</p>
         
@@ -200,6 +200,51 @@ export const MarketingTab = ({ sync }) => {
             );
           })}
         </div>
+      </div>
+
+      <div className="admin-card" style={{ padding: '24px', backgroundColor: '#fafafa', border: '1px solid #e2e8f0' }}>
+        <h3 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          🔒 Pagamenti & Protezione No-Show (Stripe)
+        </h3>
+        <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '20px' }}>Proteggi il tuo tempo richiedendo la carta di credito a garanzia o un deposito anticipato.</p>
+        
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const enabled = e.target.stripe_enabled.checked;
+          const type = e.target.stripe_type.value;
+          const amount = e.target.stripe_amount.value;
+          
+          await sync.saveSettings({
+            stripe_enabled: enabled ? '1' : '0',
+            stripe_type: type,
+            stripe_amount: amount
+          });
+          alert('Impostazioni Stripe salvate!');
+        }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', cursor: 'pointer' }}>
+            <input type="checkbox" name="stripe_enabled" defaultChecked={sync.settings?.stripe_enabled === '1'} style={{ width: '18px', height: '18px' }} />
+            Attiva Acquisizione Carta (Stripe)
+          </label>
+          
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Tipo di Protezione</label>
+              <select name="stripe_type" defaultValue={sync.settings?.stripe_type || 'fee'} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <option value="fee">Solo Penale (Blocco Carta)</option>
+                <option value="deposit">Deposito Anticipato (Acconto)</option>
+              </select>
+            </div>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Importo (€ o %)</label>
+              <input type="number" name="stripe_amount" min="1" step="1" defaultValue={sync.settings?.stripe_amount || 15} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} required />
+            </div>
+          </div>
+          
+          <button type="submit" style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: '#fff', fontWeight: '600', cursor: 'pointer' }}>
+            Salva Impostazioni Stripe
+          </button>
+        </form>
       </div>
     </div>
   );
