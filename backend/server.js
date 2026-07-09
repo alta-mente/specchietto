@@ -3153,6 +3153,66 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   }
 });
 
+// --- REVIEWS ENDPOINTS ---
+app.get('/api/reviews', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id } = req.query;
+    if (!checkScope(req, res, restaurant_id)) return;
+    const rows = await dbAll('SELECT * FROM reviews WHERE restaurant_id = ? ORDER BY created_at DESC', [restaurant_id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pubblico: il cliente lascia una recensione dal link ricevuto via email (nessuna autenticazione)
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const { appointment_id, rating, comment } = req.body;
+    const ratingNum = parseInt(rating, 10);
+    if (!appointment_id) return res.status(400).json({ error: 'Appuntamento mancante' });
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) return res.status(400).json({ error: 'Valutazione non valida' });
+
+    const appointment = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment_id]);
+    if (!appointment) return res.status(404).json({ error: 'Appuntamento non trovato' });
+
+    const already = await dbGet('SELECT id FROM reviews WHERE appointment_id = ?', [appointment_id]);
+    if (already) return res.status(400).json({ error: 'Hai già lasciato una recensione per questo appuntamento.' });
+
+    const id = 'rev-' + crypto.randomBytes(8).toString('hex');
+    await dbRun(
+      'INSERT INTO reviews (id, restaurant_id, appointment_id, customer_name, customer_email, rating, comment, response, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)',
+      [id, appointment.restaurant_id, appointment_id, appointment.customer_name || '', appointment.customer_email || '', ratingNum, comment || '', Date.now()]
+    );
+
+    const created = await dbGet('SELECT * FROM reviews WHERE id = ?', [id]);
+    io.to(appointment.restaurant_id).emit('reviewsUpdated', { action: 'create', review: created });
+    res.json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Il salone risponde pubblicamente a una recensione
+app.post('/api/reviews/:id/reply', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { response } = req.body;
+    if (!response || !response.trim()) return res.status(400).json({ error: 'Risposta obbligatoria' });
+
+    const existing = await dbGet('SELECT * FROM reviews WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Recensione non trovata' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+
+    await dbRun('UPDATE reviews SET response = ? WHERE id = ?', [response.trim(), id]);
+    const updated = await dbGet('SELECT * FROM reviews WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('reviewsUpdated', { action: 'reply', review: updated });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- WAITLIST ENDPOINTS ---
 app.get('/api/waitlist', requireAuth, async (req, res) => {
   try {

@@ -26,8 +26,11 @@ export const ReviewPage = ({ appointmentId }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointment_id: appointmentId, rating, comment })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      let data = {};
+      try { data = await res.json(); } catch (parseErr) {
+        throw new Error('Il server non ha risposto correttamente. Riprova tra poco.');
+      }
+      if (!res.ok) throw new Error(data.error || 'Errore durante l\'invio della recensione.');
       setSubmitted(true);
     } catch(err) {
       setError(err.message);
