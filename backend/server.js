@@ -462,11 +462,11 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || '"Specchietto" <noreply@specchietto.app>';
-const SMTP_TO = process.env.SMTP_TO || ''; // Indirizzo email del ristorante che riceve gli ordini
+// SMTP_TO removed from requirements as emails are routed dynamically to customers and salons.
 
 let emailTransporter = null;
 
-if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_TO) {
+if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
   try {
     emailTransporter = nodemailer.createTransport({
       host: SMTP_HOST,
@@ -481,12 +481,12 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_TO) {
       socketTimeout: 10000,     // 10 secondi
       dnsTimeout: 5000          // 5 secondi
     });
-    console.log(`✉️ Servizio email configurato. Invio notifiche a: ${SMTP_TO}`);
+    console.log(`✉️ Servizio email configurato con successo (Host: ${SMTP_HOST}).`);
   } catch (err) {
     console.error('❌ Errore configurazione SMTP email:', err);
   }
 } else {
-  console.log('ℹ️ Credenziali SMTP non configurate del tutto (SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_TO). Le notifiche email saranno simulate.');
+  console.log('ℹ️ Credenziali SMTP non configurate del tutto (SMTP_HOST, SMTP_USER, SMTP_PASS). Le notifiche email saranno simulate.');
 }
 
 // Helper to extract dynamic frontend origin from request headers with safe fallbacks
