@@ -378,7 +378,10 @@ export const BookingPage = ({ businessSlug }) => {
               </div>
             ) : sortedTimes.length === 0 ? (
               <div className="glass-card" style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>
-                Nessuno slot disponibile per questa data. Prova un altro giorno.
+                <p style={{ margin: '0 0 16px 0' }}>Nessuno slot disponibile per questa data.</p>
+                <button onClick={() => setStep('waitlist')} className="glow-button" style={{ padding: '12px 24px', fontSize: '1rem', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})` }}>
+                  Mettiti in Lista d'Attesa
+                </button>
               </div>
             ) : (
               Object.entries(grouped).map(([label, times]) => times.length > 0 && (
@@ -412,6 +415,15 @@ export const BookingPage = ({ businessSlug }) => {
                 </div>
               ))
             )}
+            
+            {sortedTimes.length > 0 && (
+              <div style={{ textAlign: 'center', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '12px' }}>Non trovi l'orario perfetto?</p>
+                <button onClick={() => setStep('waitlist')} style={{ background: 'none', border: `1px solid ${brandPrimary}`, color: brandPrimary, padding: '10px 20px', borderRadius: '12px', fontSize: '0.95rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  Mettiti in Lista d'Attesa
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -441,6 +453,63 @@ export const BookingPage = ({ businessSlug }) => {
               
               <button type="submit" disabled={submitting} className="glow-button" style={{ padding: '18px', fontSize: '1.1rem', marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}>
                 {submitting ? 'Elaborazione...' : 'Conferma prenotazione'} <ArrowRight size={20} />
+              </button>
+              {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{submitError}</div>}
+            </form>
+          </div>
+        )}
+
+        {step === 'waitlist' && (
+          <div className="animate-fade-up">
+            <button onClick={() => setStep('datetime')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ← Cambia data
+            </button>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '16px', letterSpacing: '-0.5px' }}>Lista d'Attesa</h2>
+            <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Ti avviseremo non appena si libera un posto per il giorno <strong>{formatFriendlyDate(date)}</strong>.</p>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!customerName.trim() || !customerPhone.trim()) return;
+              setSubmitting(true);
+              setSubmitError('');
+              const pref = e.target.time_preference.value;
+              const res = await fetch(`${backendUrl}/api/waitlist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  restaurant_id: restaurant.id,
+                  customer_name: customerName.trim(),
+                  customer_phone: customerPhone.trim(),
+                  date_requested: date,
+                  time_preference: pref,
+                  notes: notes.trim()
+                })
+              });
+              const data = await res.json();
+              if(res.ok) {
+                setStep('success');
+              } else {
+                setSubmitError(data.error || 'Errore');
+                setSubmitting(false);
+              }
+            }} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <input type="text" name="name" autoComplete="name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome e cognome *" required style={inputStyle} />
+              <input type="tel" name="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono *" required style={inputStyle} />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ color: '#fff', fontSize: '0.9rem', marginLeft: '4px' }}>Preferenza Orario</label>
+                <select name="time_preference" style={inputStyle} defaultValue="any">
+                  <option value="any" style={{color: '#000'}}>Qualsiasi orario</option>
+                  <option value="morning" style={{color: '#000'}}>Mattina</option>
+                  <option value="afternoon" style={{color: '#000'}}>Pomeriggio</option>
+                  <option value="evening" style={{color: '#000'}}>Sera</option>
+                </select>
+              </div>
+
+              <textarea name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (facoltative)" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+              
+              <button type="submit" disabled={submitting} className="glow-button" style={{ padding: '18px', fontSize: '1.1rem', marginTop: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}>
+                {submitting ? 'Inserimento...' : 'Entra in Lista'} <ArrowRight size={20} />
               </button>
               {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{submitError}</div>}
             </form>

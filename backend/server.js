@@ -396,6 +396,20 @@ const initDb = async () => {
     `);
 
     await dbRun(`
+      CREATE TABLE IF NOT EXISTS waitlist (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        customer_name TEXT,
+        customer_phone TEXT,
+        date_requested TEXT,
+        time_preference TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'waiting',
+        timestamp INTEGER
+      )
+    `);
+
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS coupons (
         id TEXT PRIMARY KEY,
         restaurant_id TEXT,
@@ -2739,6 +2753,88 @@ app.delete('/api/appointments/:id', requireAuth, async (req, res) => {
     if (!checkScope(req, res, existing.restaurant_id)) return;
     await dbRun('DELETE FROM appointments WHERE id = ?', [id]);
     io.to(existing.restaurant_id).emit('appointmentDeleted', { id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- WAITLIST ENDPOINTS ---
+app.get('/api/waitlist', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, date } = req.query;
+    if (!checkScope(req, res, restaurant_id)) return;
+    
+    let query = 'SELECT * FROM waitlist WHERE restaurant_id = ?';
+    const params = [restaurant_id];
+    
+    if (date) {
+      query += ' AND date_requested = ?';
+      params.push(date);
+    }
+    
+    query += ' ORDER BY timestamp ASC';
+    const rows = await dbAll(query, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/waitlist', async (req, res) => {
+  try {
+    const { restaurant_id, customer_name, customer_phone, date_requested, time_preference, notes } = req.body;
+    if (!restaurant_id || !customer_name || !customer_phone || !date_requested) {
+      return res.status(400).json({ error: 'Campi obbligatori mancanti' });
+    }
+
+    const id = 'wait-' + Math.random().toString(36).substr(2, 9);
+    await dbRun(
+      `INSERT INTO waitlist (id, restaurant_id, customer_name, customer_phone, date_requested, time_preference, notes, status, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
+      [id, restaurant_id, customer_name, customer_phone, date_requested, time_preference || 'any', notes || '', Date.now()]
+    );
+    
+    // Auto-create customer in CRM if missing
+    await dbRun(`
+      INSERT OR IGNORE INTO customers (phone, restaurant_id, name, created_at)
+      VALUES (?, ?, ?, ?)
+    `, [customer_phone.trim(), restaurant_id, customer_name.trim(), Date.now()]);
+
+    const row = await dbGet('SELECT * FROM waitlist WHERE id = ?', [id]);
+    io.to(restaurant_id).emit('waitlistUpdated', row);
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/waitlist/:id/status', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const existing = await dbGet('SELECT * FROM waitlist WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Richiesta non trovata' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+
+    await dbRun('UPDATE waitlist SET status = ? WHERE id = ?', [status, id]);
+    const updated = await dbGet('SELECT * FROM waitlist WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('waitlistUpdated', updated);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/waitlist/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM waitlist WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Richiesta non trovata' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    
+    await dbRun('DELETE FROM waitlist WHERE id = ?', [id]);
+    io.to(existing.restaurant_id).emit('waitlistDeleted', { id });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

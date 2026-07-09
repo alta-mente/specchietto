@@ -186,11 +186,22 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
           {appointment.status === 'arrived' && (
             <button disabled={busy} onClick={() => runAction('completed')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', backgroundColor: '#10b981', color: '#0f172a', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>Completa</button>
           )}
+          
+          {/* Smart Reminder (WhatsApp) */}
+          {(appointment.status === 'accepted' || appointment.status === 'pending') && appointment.customer_phone && (
+            <button onClick={() => {
+              const text = encodeURIComponent(`Ciao ${appointment.customer_name},\nti ricordiamo il tuo appuntamento per "${appointment.service_name}" il ${formatFriendlyDate(appointment.date)} alle ${appointment.time}.\nA presto!`);
+              window.open(`https://wa.me/${appointment.customer_phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank');
+            }} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', backgroundColor: '#25D366', color: '#fff', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              💬 Promemoria
+            </button>
+          )}
+
           {['pending', 'accepted'].includes(appointment.status) && (
-            <>
-              <button disabled={busy} onClick={() => runAction('noshow')} style={{ padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>No-show</button>
-              <button disabled={busy} onClick={() => runAction('declined', 'Annullato dal gestionale')} style={{ padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Rifiuta</button>
-            </>
+            <div style={{ flexBasis: '100%', display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button disabled={busy} onClick={() => runAction('noshow')} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>No-show</button>
+              <button disabled={busy} onClick={() => runAction('declined', 'Annullato dal gestionale')} style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #ef4444', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>Rifiuta</button>
+            </div>
           )}
         </div>
         <button onClick={onClose} style={{ marginTop: '14px', width: '100%', padding: '8px', borderRadius: '10px', border: 'none', background: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.8rem' }}>Chiudi</button>
@@ -393,6 +404,38 @@ export const AgendaTab = ({ sync }) => {
     <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
       <aside style={{ width: '240px', flexShrink: 0 }} className="agenda-sidebar">
         <MiniCalendar selectedDate={date} onSelectDate={setDate} />
+        
+        {/* Waitlist Panel */}
+        <div style={{ marginTop: '20px', backgroundColor: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Lista d'Attesa</span>
+            <span style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
+              {sync.waitlist?.filter(w => w.date_requested === date && w.status === 'waiting').length || 0}
+            </span>
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+            {sync.waitlist?.filter(w => w.date_requested === date && w.status === 'waiting').map(w => (
+              <div key={w.id} style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a' }}>{w.customer_name}</div>
+                <div style={{ fontSize: '0.75rem', color: '#475569', marginBottom: '6px' }}>Preferenza: {w.time_preference}</div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button onClick={() => {
+                    const text = encodeURIComponent(`Ciao ${w.customer_name},\nsi è liberato un posto per oggi ${formatFriendlyDate(w.date_requested)}!\nVuoi prenotarlo?`);
+                    window.open(`https://wa.me/${w.customer_phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank');
+                  }} style={{ flex: 1, padding: '4px', border: 'none', backgroundColor: '#25D366', color: '#fff', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>
+                    Avvisa
+                  </button>
+                  <button onClick={() => sync.updateWaitlistStatus(w.id, 'notified')} style={{ padding: '4px', border: 'none', backgroundColor: '#e2e8f0', color: '#475569', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer' }}>
+                    Fatto
+                  </button>
+                </div>
+              </div>
+            ))}
+            {(!sync.waitlist || sync.waitlist.filter(w => w.date_requested === date && w.status === 'waiting').length === 0) && (
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', padding: '10px 0' }}>Nessuno in lista d'attesa per oggi.</div>
+            )}
+          </div>
+        </div>
       </aside>
 
       <div style={{ flex: 1, minWidth: 0 }}>
