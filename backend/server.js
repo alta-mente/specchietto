@@ -420,8 +420,8 @@ const initDb = async () => {
       )
     `);
 
-    await dbRun(`
-      try { await dbRun("ALTER TABLE waitlist ADD COLUMN customer_email TEXT"); } catch(e) {}
+    try { await dbRun("ALTER TABLE waitlist ADD COLUMN customer_email TEXT"); } catch(e) {}
+    
     await dbRun(`
       CREATE TABLE IF NOT EXISTS coupons (
         id TEXT PRIMARY KEY,
