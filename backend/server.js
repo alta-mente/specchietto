@@ -9,7 +9,7 @@ import { dirname, join } from 'path';
 import { existsSync } from 'fs';
 import admin from 'firebase-admin';
 import { config } from 'dotenv';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -456,37 +456,17 @@ const initDb = async () => {
 };
 initDb();
 
-// Configurazione SMTP per le notifiche email
-const SMTP_HOST = process.env.SMTP_HOST || '';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_FROM = process.env.SMTP_FROM || `"Specchietto" <${process.env.SMTP_USER || 'noreply@specchietto.app'}>`;
-// SMTP_TO removed from requirements as emails are routed dynamically to customers and salons.
+// Configurazione Resend per le notifiche email
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_FROM = process.env.RESEND_FROM || process.env.SMTP_FROM || 'onboarding@resend.dev';
 
-let emailTransporter = null;
+let resendClient = null;
 
-if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
-  try {
-    emailTransporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS
-      },
-      connectionTimeout: 15000, // 15 secondi
-      greetingTimeout: 15000,    // 15 secondi
-      socketTimeout: 15000,     // 15 secondi
-      dnsTimeout: 15000          // 15 secondi
-    });
-    console.log(`✉️ Servizio email configurato con successo (Host: ${SMTP_HOST}).`);
-  } catch (err) {
-    console.error('❌ Errore configurazione SMTP email:', err);
-  }
+if (RESEND_API_KEY) {
+  resendClient = new Resend(RESEND_API_KEY);
+  console.log('✉️ Servizio email configurato con successo tramite Resend API.');
 } else {
-  console.log('ℹ️ Credenziali SMTP non configurate del tutto (SMTP_HOST, SMTP_USER, SMTP_PASS). Le notifiche email saranno simulate.');
+  console.log('ℹ️ RESEND_API_KEY non configurata. Le notifiche email saranno simulate.');
 }
 
 // Helper to extract dynamic frontend origin from request headers with safe fallbacks
@@ -804,7 +784,7 @@ Il locale è stato inizializzato con i parametri e i piatti di cortesia di defau
     newRestaurant
   );
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Email SuperAdmin Simulata] Nuovo ristorante registrato: ${newRestaurant.name} (Email: ${adminEmail} / Pass: ${adminPassword})`);
     return;
   }
@@ -817,7 +797,7 @@ Il locale è stato inizializzato con i parametri e i piatti di cortesia di defau
         fromEmail = match[1];
       }
     }
-    await emailTransporter.sendMail({
+    await resendClient.emails.send({
       from: `"SaaS Platform" <${fromEmail}>`,
       to: adminRecipient,
       subject: subject,
@@ -921,7 +901,7 @@ Lo staff di ${restaurantName}`;
     restaurant
   );
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Email Sondaggio Simulata] Inviata a ${order.email} per ordine ${order.id}. URL: ${surveyUrl}`);
     io.to(restId).emit('syncLog', {
       timestamp: Date.now(),
@@ -945,7 +925,7 @@ Lo staff di ${restaurantName}`;
         fromEmail = match[1];
       }
     }
-    await emailTransporter.sendMail({
+    await resendClient.emails.send({
       from: `"${restaurantName}" <${fromEmail}>`,
       to: order.email,
       subject: subject,
@@ -1067,7 +1047,7 @@ Lo staff di ${restaurantName}`;
     restaurant
   );
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Follow-up Recensione Simulata] Inviata a ${survey.customer_email} per feedback ${survey.id}`);
     io.to(restId).emit('syncLog', {
       timestamp: Date.now(),
@@ -1085,7 +1065,7 @@ Lo staff di ${restaurantName}`;
         fromEmail = match[1];
       }
     }
-    await emailTransporter.sendMail({
+    await resendClient.emails.send({
       from: `"${restaurantName}" <${fromEmail}>`,
       to: survey.customer_email,
       subject: subject,
@@ -1127,7 +1107,7 @@ const sendCustomerConfirmationEmail = async (appointment, restaurant) => {
 
   const htmlBody = buildHtmlEmail(subject, "Appuntamento Confermato", contentHtml, null, null, `Ricevi questa email perché hai prenotato presso ${restaurant.name}.`, restaurant);
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Email Simulata] Conferma appuntamento a ${appointment.customer_email}`);
     return;
   }
@@ -1135,7 +1115,7 @@ const sendCustomerConfirmationEmail = async (appointment, restaurant) => {
   try {
     let fromEmail = 'noreply@specchietto.app';
     if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
-    await emailTransporter.sendMail({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+    await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
     console.log(`✉️ Conferma inviata a: ${appointment.customer_email}`);
   } catch (err) {
     console.error('❌ Errore invio conferma:', err);
@@ -1162,7 +1142,7 @@ const sendSalonNotificationEmail = async (appointment, restaurant, adminEmail) =
 
   const htmlBody = buildHtmlEmail(subject, "Nuova Prenotazione", contentHtml, "Apri Dashboard", process.env.FRONTEND_URL || "https://specchietto.app", "Specchietto Notifiche", restaurant);
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Email Simulata] Notifica salone a ${adminEmail}`);
     return;
   }
@@ -1170,7 +1150,7 @@ const sendSalonNotificationEmail = async (appointment, restaurant, adminEmail) =
   try {
     let fromEmail = 'noreply@specchietto.app';
     if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
-    await emailTransporter.sendMail({ from: `"Specchietto" <${fromEmail}>`, to: adminEmail, subject, text: bodyText, html: htmlBody });
+    await resendClient.emails.send({ from: `"Specchietto" <${fromEmail}>`, to: adminEmail, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore notifica salone:', err);
   }
@@ -1194,7 +1174,7 @@ const sendReminderEmail = async (appointment, restaurant) => {
 
   const htmlBody = buildHtmlEmail(subject, "Promemoria Appuntamento", contentHtml, null, null, `Promemoria da ${restaurant.name}.`, restaurant);
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Email Simulata] Promemoria a ${appointment.customer_email}`);
     return;
   }
@@ -1202,7 +1182,7 @@ const sendReminderEmail = async (appointment, restaurant) => {
   try {
     let fromEmail = 'noreply@specchietto.app';
     if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
-    await emailTransporter.sendMail({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+    await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore promemoria:', err);
   }
@@ -1228,7 +1208,7 @@ const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
 
   const htmlBody = buildHtmlEmail(subject, "La tua opinione conta", contentHtml, null, null, `Richiesta recensione da ${restaurant.name}.`, restaurant);
 
-  if (!emailTransporter) {
+  if (!resendClient) {
     console.log(`✉️ [Email Simulata] Richiesta recensione a ${appointment.customer_email}`);
     return;
   }
@@ -1236,7 +1216,7 @@ const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
   try {
     let fromEmail = 'noreply@specchietto.app';
     if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
-    await emailTransporter.sendMail({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+    await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore richiesta recensione:', err);
   }
@@ -1685,7 +1665,7 @@ Piattaforma ${brandName}`;
     );
 
     // Invia l'email tramite il servizio configurato
-    transporter.sendMail({
+    transporter.emails.send({
       from: SMTP_FROM || `"${brandName}" <noreply@specchietto.app>`,
       to: email,
       subject: mailSubject,
@@ -2915,7 +2895,7 @@ app.post('/api/appointments', async (req, res) => {
 // GET route per testare la configurazione SMTP
 app.get('/api/test-email', async (req, res) => {
   try {
-    if (!emailTransporter) {
+    if (!resendClient) {
       return res.status(400).json({ error: 'Servizio email non configurato. Controlla le variabili d\'ambiente (SMTP_HOST, SMTP_USER, SMTP_PASS).' });
     }
     const testTo = req.query.email || process.env.SMTP_USER;
@@ -2923,13 +2903,13 @@ app.get('/api/test-email', async (req, res) => {
       return res.status(400).json({ error: 'Nessuna email di destinazione specificata. Passa ?email=tuaemail@dominio.it' });
     }
     
-    let fromEmail = process.env.SMTP_USER || 'noreply@specchietto.app';
+    let fromEmail = RESEND_FROM;
     if (process.env.SMTP_FROM) { 
       const match = process.env.SMTP_FROM.match(/<([^>]+)>/); 
       if (match && match[1]) fromEmail = match[1]; 
     }
 
-    const info = await emailTransporter.sendMail({
+    const response = await resendClient.emails.send({
       from: `"Specchietto Test" <${fromEmail}>`,
       to: testTo,
       subject: 'Test Invio Email Specchietto',
@@ -2937,7 +2917,11 @@ app.get('/api/test-email', async (req, res) => {
       html: '<p>Se stai leggendo questa mail, il <strong>server SMTP</strong> è configurato correttamente! 🎉</p>'
     });
     
-    res.json({ success: true, message: 'Email inviata con successo!', info: info.messageId });
+    if (response.error) {
+      throw new Error(response.error.message);
+    }
+    
+    res.json({ success: true, message: 'Email inviata con successo!', info: response.data ? response.data.id : 'ok' });
   } catch (err) {
     console.error('Test Email Fallito:', err);
     res.status(500).json({ success: false, error: err.message, stack: err.stack });
