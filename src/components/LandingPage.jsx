@@ -423,7 +423,7 @@ export const LandingPage = ({ onOpenLogin }) => {
           </div>
         </div>
         <div style={{ textAlign: 'center', fontSize: '0.9rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '32px' }}>
-          &copy; {new Date().getFullYear()} Specchietto by Alta-Mente. Tutti i diritti riservati.
+          &copy; {new Date().getFullYear()} Specchietto by <a href="https://altamente.it" target="_blank" rel="noopener noreferrer" style={{ color: '#FF5C82', textDecoration: 'none', fontWeight: '600' }}>Alta-Mente</a>. Tutti i diritti riservati.
         </div>
       </footer>
 
