@@ -3125,7 +3125,7 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
     const apt = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment_id]);
     if (!apt) return res.status(404).json({ error: 'Appuntamento non trovato' });
 
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     await dbRun(
       'INSERT INTO transactions (id, restaurant_id, appointment_id, customer_name, customer_phone, total_amount, payment_method, items, discount_code, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [id, restaurant_id, appointment_id, apt.customer_name, apt.customer_phone, total_amount, payment_method, JSON.stringify(items || []), discount_code || '', Date.now()]
