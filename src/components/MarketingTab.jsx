@@ -176,25 +176,31 @@ export const MarketingTab = ({ sync }) => {
       </div>
 
       <div className="admin-card" style={{ padding: '24px', marginBottom: '32px' }}>
-        <h3 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '1.1rem' }}>Social & Link in Bio</h3>
-        <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '20px' }}>Copia questi link per aggiungerli ai tuoi social. Il sistema traccerà automaticamente le prenotazioni!</p>
+        <h3 style={{ margin: '0 0 16px 0', color: '#0f172a', fontSize: '1.1rem' }}>Social, Link in Bio & Google Maps</h3>
+        <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '20px' }}>Copia questi link per aggiungerli ai tuoi social o alla tua scheda Google. Il sistema traccerà automaticamente le prenotazioni per fornirti statistiche dettagliate sui canali di acquisizione.</p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {['Instagram', 'Facebook', 'TikTok'].map(social => {
+          {['Instagram', 'Facebook', 'TikTok', 'Google'].map(social => {
             const baseUrl = window.location.origin;
             const slug = sync.restaurant?.slug || sync.restaurant?.id;
-            const link = `${baseUrl}/prenota/${slug}?source=${social.toLowerCase()}`;
+            // Fix hash routing format
+            const link = `${baseUrl}/#/prenota?business=${slug}&source=${social.toLowerCase()}`;
             return (
-              <div key={social} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div>
-                  <strong style={{ display: 'block', fontSize: '0.95rem' }}>Link per {social}</strong>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{link}</span>
+              <div key={social} style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: social === 'Google' ? '#f0fdf4' : '#f8fafc', borderRadius: '8px', border: social === 'Google' ? '1px solid #86efac' : '1px solid #e2e8f0' }}>
+                <div style={{ flex: '1 1 300px' }}>
+                  <strong style={{ display: 'block', fontSize: '1rem', color: social === 'Google' ? '#166534' : '#0f172a' }}>Link per {social === 'Google' ? 'Google My Business' : social}</strong>
+                  <span style={{ fontSize: '0.85rem', color: '#64748b', wordBreak: 'break-all', display: 'block', marginTop: '4px' }}>{link}</span>
+                  {social === 'Google' && (
+                    <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#166534', padding: '8px', backgroundColor: 'rgba(22, 101, 52, 0.05)', borderRadius: '6px' }}>
+                      <strong>Come usarlo:</strong> Vai su Google My Business {'->'} Modifica profilo {'->'} Prenotazioni {'->'} Incolla questo link come "Link per le prenotazioni".
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => {
                   navigator.clipboard.writeText(link);
                   alert('Link copiato!');
-                }} style={{ padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
-                  Copia
+                }} style={{ padding: '8px 16px', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', height: 'fit-content' }}>
+                  Copia Link
                 </button>
               </div>
             );
