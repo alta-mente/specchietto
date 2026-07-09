@@ -63,6 +63,7 @@ const ResourceHoursEditor = ({ resource, sync }) => {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   const toggleDay = (idx) => {
     setHours(prev => ({ ...prev, [idx]: { ...prev[idx], enabled: !prev[idx].enabled } }));
@@ -75,13 +76,18 @@ const ResourceHoursEditor = ({ resource, sync }) => {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setError('');
     const payload = Object.entries(hours)
       .filter(([, v]) => v.enabled)
       .map(([day, v]) => ({ day_of_week: parseInt(day, 10), open_time: v.open, close_time: v.close }));
-    await sync.setResourceHours(resource.id, payload);
+    const ok = await sync.setResourceHours(resource.id, payload);
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } else {
+      setError('Errore nel salvataggio dell\'orario.');
+    }
   };
 
   return (
@@ -111,6 +117,7 @@ const ResourceHoursEditor = ({ resource, sync }) => {
       >
         {saving ? 'Salvo...' : saved ? '✓ Salvato' : 'Salva orario'}
       </button>
+      {error && <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#ef4444' }}>{error}</div>}
     </div>
   );
 };
@@ -119,6 +126,7 @@ const ResourceServicesEditor = ({ resource, sync }) => {
   const [selected, setSelected] = useState(resource.services || []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   const toggle = (serviceId) => {
     setSelected(prev => prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]);
@@ -127,10 +135,15 @@ const ResourceServicesEditor = ({ resource, sync }) => {
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
-    await sync.setResourceServices(resource.id, selected);
+    setError('');
+    const ok = await sync.setResourceServices(resource.id, selected);
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } else {
+      setError('Errore nel salvataggio dei servizi assegnati.');
+    }
   };
 
   if ((sync.services || []).length === 0) {
@@ -157,6 +170,7 @@ const ResourceServicesEditor = ({ resource, sync }) => {
       >
         {saving ? 'Salvo...' : saved ? '✓ Salvato' : 'Salva servizi assegnati'}
       </button>
+      {error && <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#ef4444' }}>{error}</div>}
     </div>
   );
 };
@@ -324,7 +338,11 @@ export const ResourcesTab = ({ sync }) => {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setAuthResource(resource)} style={{ border: 'none', background: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem' }}>Crea Accesso</button>
               <button
-                onClick={() => sync.deleteResource(resource.id)}
+                onClick={async () => {
+                  if (!window.confirm(`Eliminare ${resource.name} dal team? L'azione non è reversibile.`)) return;
+                  const ok = await sync.deleteResource(resource.id);
+                  if (!ok) window.alert('Errore durante l\'eliminazione. Riprova.');
+                }}
                 style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}
               >
                 Elimina

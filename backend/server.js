@@ -1349,6 +1349,9 @@ const sendPushNotificationToAll = async (order) => {
 // HTTP REST API routes
 
 // Chiave segreta per la firma dei token stateless (JWT-like) per resistere ai reboot di Render
+if (!process.env.JWT_SECRET) {
+  console.error('🚨 ATTENZIONE: JWT_SECRET non configurata nelle variabili d\'ambiente. Uso un valore di default NON sicuro: chiunque conosca questo codice sorgente può forgiare token validi. Imposta JWT_SECRET in backend/.env prima di andare in produzione.');
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'specchietto_super_secret_key_change_me';
 
 // Helper per generare un token stateless firmato (valido 30 giorni per evitare disconnessioni)
@@ -1375,7 +1378,9 @@ const verifyToken = (token) => {
     const hmac = crypto.createHmac('sha256', JWT_SECRET);
     hmac.update(payloadStr);
     const expectedSignature = hmac.digest('base64url');
-    if (signature !== expectedSignature) return null;
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) return null;
     
     const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
     if (Date.now() > payload.expires_at) return null; // Scaduto
@@ -1635,7 +1640,10 @@ app.post('/api/settings', requireAuth, async (req, res) => {
     const settingsMap = {};
     updatedSettings.forEach(s => { settingsMap[s.key] = s.value; });
     io.to(restaurant_id).emit('settingsUpdated', settingsMap);
-    
+
+    // Aggiorna subito lo stato dei dispositivi (es. toggle reception_enabled)
+    await emitDeviceStatus(restaurant_id);
+
     res.json({ success: true, settings: settingsMap });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2098,34 +2106,6 @@ app.get('/api/settings', async (req, res) => {
 });
 
 // POST save/update settings
-app.post('/api/settings', requireAuth, async (req, res) => {
-  try {
-    const { restaurant_id, ...settings } = req.body;
-    if (!checkScope(req, res, restaurant_id)) return;
-    const targetRestaurantId = restaurant_id || 'rest-1';
-    
-    for (const [key, value] of Object.entries(settings)) {
-      await dbRun('INSERT OR REPLACE INTO settings (restaurant_id, key, value) VALUES (?, ?, ?)', [targetRestaurantId, key, String(value)]);
-    }
-    
-    // Retrieve updated settings and emit to all sockets in this restaurant's room
-    const rows = await dbAll('SELECT * FROM settings WHERE restaurant_id = ?', [targetRestaurantId]);
-    const settingsObj = {};
-    rows.forEach(r => {
-      settingsObj[r.key] = r.value;
-    });
-    io.to(targetRestaurantId).emit('settingsUpdated', settingsObj);
-    
-    // Immediately emit device status updates to verify reception_enabled toggles
-    await emitDeviceStatus(targetRestaurantId);
-    
-    console.log(`⚙️ Impostazioni aggiornate per il ristorante ${targetRestaurantId}.`);
-    res.json(settingsObj);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // CRM Customer endpoints
 app.get('/api/customers', requireAuth, async (req, res) => {
   try {
@@ -2460,20 +2440,15 @@ app.put('/api/resources/:id', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/resources/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
-    if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
-
 // Crea credenziali di accesso per un dipendente (staff)
 app.post('/api/resources/:id/user', requireAuth, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email e password richiesti' });
-    
+
     const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [req.params.id]);
     if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, resource.restaurant_id)) return;
 
     const existingUser = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUser) return res.status(400).json({ error: 'Email già in uso da un altro account' });
@@ -2481,19 +2456,25 @@ app.post('/api/resources/:id/user', requireAuth, async (req, res) => {
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
     const userId = 'usr-' + Math.random().toString(36).substr(2, 9);
-    
+
     await dbRun(
       'INSERT INTO users (id, restaurant_id, email, password_hash, salt, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [userId, resource.restaurant_id, email, hash, salt, 'staff', Date.now()]
     );
-    
+
     await dbRun('UPDATE resources SET user_id = ? WHERE id = ?', [userId, resource.id]);
-    
+
     res.json({ success: true, message: 'Accesso creato con successo' });
   } catch(err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.delete('/api/resources/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
     await dbRun('DELETE FROM resources WHERE id = ?', [id]);
     await dbRun('DELETE FROM resource_services WHERE resource_id = ?', [id]);

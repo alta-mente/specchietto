@@ -213,8 +213,9 @@ export const useSpecchiettoSync = () => {
   }, [restaurantId, authHeaders, refreshResources]);
 
   const deleteResource = useCallback(async (id) => {
-    await fetch(`${backendUrl}/api/resources/${id}`, { method: 'DELETE', headers: authHeaders() });
-    await refreshResources();
+    const res = await fetch(`${backendUrl}/api/resources/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) await refreshResources();
+    return res.ok;
   }, [authHeaders, refreshResources]);
 
   const updateResource = useCallback(async (id, updates) => {
@@ -238,8 +239,9 @@ export const useSpecchiettoSync = () => {
   }, [restaurantId, authHeaders, refreshServices]);
 
   const deleteService = useCallback(async (id) => {
-    await fetch(`${backendUrl}/api/services/${id}`, { method: 'DELETE', headers: authHeaders() });
-    await refreshServices();
+    const res = await fetch(`${backendUrl}/api/services/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) await refreshServices();
+    return res.ok;
   }, [authHeaders, refreshServices]);
 
   const setResourceHours = useCallback(async (resourceId, hours) => {

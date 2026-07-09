@@ -66,7 +66,14 @@ export const ServicesTab = ({ sync }) => {
                 {s.duration_minutes} min • €{s.price}
               </div>
             </div>
-            <button onClick={() => sync.deleteService(s.id)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}>
+            <button
+              onClick={async () => {
+                if (!window.confirm(`Eliminare il servizio "${s.name}"? L'azione non è reversibile.`)) return;
+                const ok = await sync.deleteService(s.id);
+                if (!ok) window.alert('Errore durante l\'eliminazione. Riprova.');
+              }}
+              style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}
+            >
               Elimina
             </button>
           </div>
