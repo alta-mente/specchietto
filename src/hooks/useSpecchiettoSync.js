@@ -217,6 +217,16 @@ export const useSpecchiettoSync = () => {
     await refreshResources();
   }, [authHeaders, refreshResources]);
 
+  const updateResource = useCallback(async (id, updates) => {
+    const res = await fetch(`${backendUrl}/api/resources/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(updates)
+    });
+    if (res.ok) await refreshResources();
+    return res.ok;
+  }, [authHeaders, refreshResources]);
+
   const createService = useCallback(async (name, category, durationMinutes, price, isAddon = false) => {
     const res = await fetch(`${backendUrl}/api/services`, {
       method: 'POST',
@@ -450,6 +460,7 @@ export const useSpecchiettoSync = () => {
     refreshRestaurantsList,
     createResource,
     deleteResource,
+    updateResource,
     createService,
     deleteService,
     setResourceHours,

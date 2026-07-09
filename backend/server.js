@@ -56,7 +56,7 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '8mb' })); // alzato per permettere upload avatar come base64
 
 // PORT settings
 const PORT = process.env.PORT || 3001;

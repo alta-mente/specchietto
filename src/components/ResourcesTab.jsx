@@ -1,6 +1,34 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { Camera } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { getBackendUrl } from '../services/backendUrl';
+
+// Ridimensiona e comprime un'immagine caricata dall'utente in un JPEG data URL,
+// così da tenere piccolo il payload salvato lato backend.
+const resizeImageToJpegDataUrl = (file, maxDim = 320, quality = 0.85) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error('Errore durante la lettura del file.'));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error('File immagine non valido.'));
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+      } else if (height > maxDim) {
+        width = Math.round(width * (maxDim / height)); height = maxDim;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 const DAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
@@ -189,6 +217,67 @@ const ResourceAuthModal = ({ resource, onClose }) => {
   );
 };
 
+const ResourceAvatar = ({ resource, sync }) => {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permette di riselezionare lo stesso file
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Seleziona un\'immagine (jpg/png).');
+      return;
+    }
+    setError('');
+    setUploading(true);
+    try {
+      const dataUrl = await resizeImageToJpegDataUrl(file);
+      const ok = await sync.updateResource(resource.id, { photo_url: dataUrl });
+      if (!ok) setError('Errore nel salvataggio dell\'avatar.');
+    } catch (err) {
+      setError(err.message || 'Errore durante il caricamento.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '40px', height: '40px', flexShrink: 0 }}>
+      <div
+        onClick={() => inputRef.current?.click()}
+        title="Cambia foto"
+        style={{
+          width: '40px', height: '40px', borderRadius: '50%',
+          backgroundColor: resource.color || '#e2e8f0',
+          backgroundImage: resource.photo_url ? `url(${resource.photo_url})` : 'none',
+          backgroundSize: 'cover', backgroundPosition: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontWeight: 'bold', cursor: 'pointer', overflow: 'hidden'
+        }}
+      >
+        {!resource.photo_url && (resource.name || '?').charAt(0).toUpperCase()}
+        {uploading && (
+          <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+            <span style={{ fontSize: '0.5rem', color: '#fff' }}>...</span>
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        title="Cambia foto"
+        style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: '#0f172a', border: '2px solid #fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+      >
+        <Camera size={10} />
+      </button>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/jpg" onChange={handleFile} style={{ display: 'none' }} />
+      {error && <div style={{ position: 'absolute', top: '46px', left: 0, fontSize: '0.65rem', color: '#ef4444', width: '150px', lineHeight: 1.3 }}>{error}</div>}
+    </div>
+  );
+};
+
 export const ResourcesTab = ({ sync }) => {
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -227,9 +316,7 @@ export const ResourcesTab = ({ sync }) => {
         <div key={resource.id} style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: resource.color || '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
-                {(resource.name || '?').charAt(0).toUpperCase()}
-              </div>
+              <ResourceAvatar resource={resource} sync={sync} />
               <div>
                 <strong style={{ fontSize: '1.1rem' }}>{resource.name}</strong>
               </div>
