@@ -28,7 +28,7 @@ function App() {
 
   if (view === 'booking') {
     return (
-      <div className="app-container" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="app-container">
         <BookingPage businessSlug={businessSlug} />
       </div>
     );
@@ -36,7 +36,7 @@ function App() {
 
   if (view === 'review') {
     return (
-      <div className="app-container" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="app-container">
         <ReviewPage appointmentId={getView().appointmentId} />
       </div>
     );
@@ -47,7 +47,7 @@ function App() {
   }
 
   return (
-    <div className="app-container" style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
+    <div className="app-container">
       <LandingPage onOpenLogin={() => { window.location.hash = '#/admin'; window.location.reload(); }} />
     </div>
   );
