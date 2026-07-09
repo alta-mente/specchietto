@@ -276,6 +276,9 @@ export const BookingPage = ({ businessSlug }) => {
   }
 
   if (confirmedAppointment) {
+    const assignedResource = anyPreference
+      ? eligibleResources.find(r => r.id === slotMap[selectedTime])
+      : selectedResource;
     return (
       <div style={{ backgroundColor: 'var(--ink)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div className="glass-card animate-fade-up" style={{ maxWidth: '480px', width: '100%', padding: '40px 32px', textAlign: 'center' }}>
@@ -305,10 +308,22 @@ export const BookingPage = ({ businessSlug }) => {
                 <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{selectedTime}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: assignedResource ? '16px' : 0 }}>
               <User size={20} color={brandPrimary} />
               <span style={{ color: '#94a3b8' }}>Prenotato per: {customerName}</span>
             </div>
+            {assignedResource && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--glass-border)' }}>
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0,
+                  background: assignedResource.photo_url ? `center / cover no-repeat url(${assignedResource.photo_url})` : `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`,
+                  color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: '800'
+                }}>
+                  {!assignedResource.photo_url && initials(assignedResource.name)}
+                </div>
+                <span style={{ color: '#94a3b8' }}>Con te ci sarà <strong style={{ color: '#fff' }}>{assignedResource.name}</strong></span>
+              </div>
+            )}
           </div>
           
           <button onClick={() => window.location.reload()} className="glow-button" style={{ width: '100%', padding: '16px', fontSize: '1.05rem', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}>
@@ -372,8 +387,12 @@ export const BookingPage = ({ businessSlug }) => {
               
               {eligibleResources.map(r => (
                 <div key={r.id} onClick={() => handleSelectResource(r)} className="glass-card" style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: '800' }}>
-                    {initials(r.name)}
+                  <div style={{
+                    width: '48px', height: '48px', borderRadius: '16px', flexShrink: 0,
+                    background: r.photo_url ? `center / cover no-repeat url(${r.photo_url})` : `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`,
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: '800'
+                  }}>
+                    {!r.photo_url && initials(r.name)}
                   </div>
                   <div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{r.name}</div>
                 </div>
@@ -477,7 +496,11 @@ export const BookingPage = ({ businessSlug }) => {
           </div>
         )}
 
-        {step === 'details' && (
+        {step === 'details' && (() => {
+          const assignedResource = anyPreference
+            ? eligibleResources.find(r => r.id === slotMap[selectedTime])
+            : selectedResource;
+          return (
           <div className="animate-fade-up">
             <button onClick={() => setStep('datetime')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '24px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               ← Cambia data/ora
@@ -489,10 +512,24 @@ export const BookingPage = ({ businessSlug }) => {
                 <Sparkles size={20} color={brandPrimary} />
                 <strong style={{ fontSize: '1.1rem' }}>{selectedService.name}</strong>
               </div>
-              <div style={{ color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '32px' }}>
+              <div style={{ color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '32px', marginBottom: assignedResource ? '16px' : 0 }}>
                 <span>{formatFriendlyDate(date)} alle {selectedTime}</span>
-                {!anyPreference && selectedResource && <span>Operatore: {selectedResource.name}</span>}
               </div>
+              {assignedResource && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--glass-border)' }}>
+                  <div style={{
+                    width: '44px', height: '44px', borderRadius: '14px', flexShrink: 0,
+                    background: assignedResource.photo_url ? `center / cover no-repeat url(${assignedResource.photo_url})` : `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`,
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: '800'
+                  }}>
+                    {!assignedResource.photo_url && initials(assignedResource.name)}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Con te ci sarà</div>
+                    <div style={{ fontWeight: '700' }}>{assignedResource.name}</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleSubmit} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -507,7 +544,8 @@ export const BookingPage = ({ businessSlug }) => {
               {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '8px' }}>{submitError}</div>}
             </form>
           </div>
-        )}
+          );
+        })()}
 
         {step === 'payment' && (
           <div className="animate-fade-up">

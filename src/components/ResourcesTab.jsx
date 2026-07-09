@@ -274,7 +274,19 @@ const ResourceAuthModal = ({ resource, onClose }) => {
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
       <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', width: '400px', maxWidth: '90vw' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Crea Accesso per {resource.name}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+          <div style={{
+            width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+            backgroundColor: resource.color || '#e2e8f0',
+            backgroundImage: resource.photo_url ? `url(${resource.photo_url})` : 'none',
+            backgroundSize: 'cover', backgroundPosition: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 'bold'
+          }}>
+            {!resource.photo_url && (resource.name || '?').charAt(0).toUpperCase()}
+          </div>
+          <h3 style={{ margin: 0 }}>Crea Accesso per {resource.name}</h3>
+        </div>
         {success ? (
           <div style={{ color: '#10b981', fontWeight: 'bold' }}>{success}</div>
         ) : (
