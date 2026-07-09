@@ -2712,7 +2712,7 @@ app.post('/api/appointments', async (req, res) => {
     // Ricontrolla che lo slot richiesto sia ancora libero
     const availableSlots = await calculateResourceAvailability(resource_id, date, service_id, addon_id);
     if (!availableSlots.includes(time)) {
-      return res.status(409).json({ error: 'Lo slot richiesto o l\\'add-on si sovrappone con un altro appuntamento' });
+      return res.status(409).json({ error: "Lo slot richiesto o l'add-on si sovrappone con un altro appuntamento" });
     }
 
     const id = 'apt-' + Math.random().toString(36).substr(2, 9);
