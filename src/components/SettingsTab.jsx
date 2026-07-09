@@ -1,9 +1,53 @@
-import { useState, useEffect } from 'react';
-import { Save, Store, Clock, Globe, Code, Palette, Image as ImageIcon, Mail } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Save, Store, Clock, Globe, Code, Palette, Image as ImageIcon, Mail, CreditCard, CheckCircle2, AlertTriangle, Loader } from 'lucide-react';
 
 export const SettingsTab = ({ sync }) => {
   const [activeSection, setActiveSection] = useState('general');
   const [saving, setSaving] = useState(false);
+
+  // --- Pagamenti (Stripe) ---
+  const [stripeStatus, setStripeStatus] = useState(null); // { connected, onboarded } | null = ancora in caricamento
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState('');
+  const [savingPayments, setSavingPayments] = useState(false);
+
+  const loadStripeStatus = useCallback(async () => {
+    try {
+      const status = await sync.getStripeConnectStatus();
+      setStripeStatus(status);
+    } catch (e) {
+      setStripeStatus({ connected: false, onboarded: false });
+    }
+  }, [sync]);
+
+  useEffect(() => { loadStripeStatus(); }, [loadStripeStatus]);
+
+  const handleConnectStripe = async () => {
+    setConnecting(true);
+    setConnectError('');
+    try {
+      const url = await sync.startStripeConnectOnboarding();
+      window.location.href = url;
+    } catch (e) {
+      setConnectError(e.message || 'Errore nel collegamento con Stripe.');
+      setConnecting(false);
+    }
+  };
+
+  const handleSavePaymentSettings = async (e) => {
+    e.preventDefault();
+    setSavingPayments(true);
+    const enabled = e.target.stripe_enabled.checked;
+    const type = e.target.stripe_type.value;
+    const amount = e.target.stripe_amount.value;
+    await sync.saveSettings({
+      stripe_enabled: enabled ? '1' : '0',
+      stripe_type: type,
+      stripe_amount: amount
+    });
+    setSavingPayments(false);
+    alert('Impostazioni Stripe salvate!');
+  };
 
   // Settings State
   const restaurant = sync.restaurants.find(r => r.id === sync.restaurantId) || {};
@@ -45,6 +89,7 @@ export const SettingsTab = ({ sync }) => {
     { id: 'general', label: 'Info & Brand', icon: <Palette size={18} /> },
     { id: 'hours', label: 'Orari Salone', icon: <Clock size={18} /> },
     { id: 'booking', label: 'Prenotazioni Online', icon: <Globe size={18} /> },
+    { id: 'payments', label: 'Pagamenti', icon: <CreditCard size={18} /> },
     { id: 'integration', label: 'Integrazione Sito', icon: <Code size={18} /> }
   ];
 
@@ -164,6 +209,92 @@ export const SettingsTab = ({ sync }) => {
                 <Save size={18} />
                 {saving ? 'Salvataggio...' : 'Salva Regole'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'payments' && (
+          <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', color: '#0f172a' }}>Pagamenti</h3>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569' }}>Collega il tuo account Stripe e configura acconti o penali no-show.</p>
+            </div>
+
+            <div style={{ padding: '20px', backgroundColor: '#fafafa', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+              <h4 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CreditCard size={18} /> Account Stripe del salone
+              </h4>
+              <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '16px' }}>
+                Per incassare acconti online e link di pagamento devi collegare il tuo account Stripe: i pagamenti dei tuoi clienti arriveranno direttamente a te, non a Specchietto.
+              </p>
+
+              {stripeStatus === null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '0.9rem' }}>
+                  <Loader size={16} className="animate-spin" /> Verifica dello stato in corso...
+                </div>
+              )}
+
+              {stripeStatus && stripeStatus.onboarded && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#16a34a', fontWeight: '600', fontSize: '0.95rem' }}>
+                  <CheckCircle2 size={20} /> Account Stripe collegato e pronto a ricevere pagamenti.
+                </div>
+              )}
+
+              {stripeStatus && !stripeStatus.onboarded && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b45309', fontWeight: '600', fontSize: '0.9rem', marginBottom: '12px' }}>
+                    <AlertTriangle size={18} />
+                    {stripeStatus.connected ? 'Configurazione Stripe da completare.' : 'Nessun account Stripe collegato.'}
+                  </div>
+                  <button
+                    onClick={handleConnectStripe}
+                    disabled={connecting}
+                    style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: '#fff', fontWeight: '600', cursor: connecting ? 'default' : 'pointer', opacity: connecting ? 0.7 : 1 }}
+                  >
+                    {connecting ? 'Reindirizzamento a Stripe...' : (stripeStatus.connected ? 'Completa la configurazione Stripe' : 'Collega il tuo account Stripe')}
+                  </button>
+                  {connectError && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '8px' }}>{connectError}</p>}
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '20px', backgroundColor: '#fafafa', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+              <h4 style={{ margin: '0 0 12px 0', color: '#0f172a', fontSize: '1rem' }}>
+                🔒 Protezione No-Show (Stripe)
+              </h4>
+              <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '16px' }}>Proteggi il tuo tempo richiedendo la carta di credito a garanzia o un deposito anticipato.</p>
+
+              {sync.settings?.stripe_enabled === '1' && stripeStatus && !stripeStatus.onboarded && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b45309', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '10px 14px', fontSize: '0.85rem', marginBottom: '16px' }}>
+                  <AlertTriangle size={16} />
+                  L'acquisizione carta è attiva ma il salone non ha ancora collegato Stripe: i clienti non potranno pagare finché non completi la configurazione qui sopra.
+                </div>
+              )}
+
+              <form onSubmit={handleSavePaymentSettings} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                  <input type="checkbox" name="stripe_enabled" defaultChecked={sync.settings?.stripe_enabled === '1'} style={{ width: '18px', height: '18px' }} />
+                  Attiva Acquisizione Carta (Stripe)
+                </label>
+
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Tipo di Protezione</label>
+                    <select name="stripe_type" defaultValue={sync.settings?.stripe_type || 'fee'} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <option value="fee">Solo Penale (Blocco Carta)</option>
+                      <option value="deposit">Deposito Anticipato (Acconto)</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: '1 1 200px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '6px' }}>Importo (€ o %)</label>
+                    <input type="number" name="stripe_amount" min="1" step="1" defaultValue={sync.settings?.stripe_amount || 15} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} required />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={savingPayments} style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: '#fff', fontWeight: '600', cursor: 'pointer' }}>
+                  {savingPayments ? 'Salvataggio...' : 'Salva Impostazioni Stripe'}
+                </button>
+              </form>
             </div>
           </div>
         )}
