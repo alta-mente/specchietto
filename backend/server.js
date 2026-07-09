@@ -3103,6 +3103,73 @@ app.delete('/api/appointments/:id', requireAuth, async (req, res) => {
   }
 });
 
+// --- TRANSACTIONS ENDPOINTS ---
+app.get('/api/transactions', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id } = req.query;
+    if (!checkScope(req, res, restaurant_id)) return;
+    const transactions = await dbAll('SELECT * FROM transactions WHERE restaurant_id = ? ORDER BY timestamp DESC', [restaurant_id]);
+    res.json(transactions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/transactions', requireAuth, async (req, res) => {
+  try {
+    const { restaurant_id, appointment_id, total_amount, payment_method, items, discount_code } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+
+    const apt = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment_id]);
+    if (!apt) return res.status(404).json({ error: 'Appuntamento non trovato' });
+
+    const id = uuidv4();
+    await dbRun(
+      'INSERT INTO transactions (id, restaurant_id, appointment_id, customer_name, customer_phone, total_amount, payment_method, items, discount_code, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, restaurant_id, appointment_id, apt.customer_name, apt.customer_phone, total_amount, payment_method, JSON.stringify(items || []), discount_code || '', Date.now()]
+    );
+
+    // Update appointment price and status
+    await dbRun('UPDATE appointments SET status = ?, price = ? WHERE id = ?', ['completed', total_amount, appointment_id]);
+    
+    // Trigger the same logic as PUT /status (reviews and loyalty points)
+    if (apt.status !== 'completed') {
+      // 1. Invia email recensione
+      if (apt.customer_email && apt.survey_sent === 0) {
+        try {
+          const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+          const googleLink = restaurant?.google_review_link || null;
+          await sendReviewEmail(apt, restaurant, googleLink);
+          await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [appointment_id]);
+        } catch (e) {
+          console.error('Errore invio email recensione dal checkout:', e);
+        }
+      }
+
+      // 2. Aggiungi punti fedeltà
+      if (apt.customer_phone && total_amount > 0) {
+        const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+        if (restaurant && restaurant.loyalty_enabled === 1) {
+          const points = Math.floor(total_amount * (restaurant.loyalty_points_per_euro || 1));
+          if (points > 0) {
+            await dbRun(
+              'UPDATE customers SET loyalty_points = loyalty_points + ? WHERE phone = ? AND restaurant_id = ?',
+              [points, apt.customer_phone, restaurant_id]
+            );
+          }
+        }
+      }
+    }
+
+    const updatedApt = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment_id]);
+    io.to(restaurant_id).emit('appointmentUpdated', updatedApt);
+    
+    res.json({ success: true, transactionId: id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- WAITLIST ENDPOINTS ---
 app.get('/api/waitlist', requireAuth, async (req, res) => {
   try {
