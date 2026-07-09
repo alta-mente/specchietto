@@ -458,7 +458,7 @@ initDb();
 
 // Configurazione Resend per le notifiche email
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const RESEND_FROM = process.env.RESEND_FROM || process.env.SMTP_FROM || 'onboarding@resend.dev';
+const RESEND_FROM = process.env.RESEND_FROM || process.env.RESEND_FROM || 'onboarding@resend.dev';
 
 let resendClient = null;
 
@@ -791,8 +791,8 @@ Il locale è stato inizializzato con i parametri e i piatti di cortesia di defau
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) {
-      const match = SMTP_FROM.match(/<([^>]+)>/);
+    if (RESEND_FROM) {
+      const match = RESEND_FROM.match(/<([^>]+)>/);
       if (match && match[1]) {
         fromEmail = match[1];
       }
@@ -919,8 +919,8 @@ Lo staff di ${restaurantName}`;
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) {
-      const match = SMTP_FROM.match(/<([^>]+)>/);
+    if (RESEND_FROM) {
+      const match = RESEND_FROM.match(/<([^>]+)>/);
       if (match && match[1]) {
         fromEmail = match[1];
       }
@@ -1059,8 +1059,8 @@ Lo staff di ${restaurantName}`;
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) {
-      const match = SMTP_FROM.match(/<([^>]+)>/);
+    if (RESEND_FROM) {
+      const match = RESEND_FROM.match(/<([^>]+)>/);
       if (match && match[1]) {
         fromEmail = match[1];
       }
@@ -1114,7 +1114,7 @@ const sendCustomerConfirmationEmail = async (appointment, restaurant) => {
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    if (RESEND_FROM) { const match = RESEND_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
     await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
     console.log(`✉️ Conferma inviata a: ${appointment.customer_email}`);
   } catch (err) {
@@ -1149,7 +1149,7 @@ const sendSalonNotificationEmail = async (appointment, restaurant, adminEmail) =
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    if (RESEND_FROM) { const match = RESEND_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
     await resendClient.emails.send({ from: `"Specchietto" <${fromEmail}>`, to: adminEmail, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore notifica salone:', err);
@@ -1181,7 +1181,7 @@ const sendReminderEmail = async (appointment, restaurant) => {
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    if (RESEND_FROM) { const match = RESEND_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
     await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore promemoria:', err);
@@ -1215,7 +1215,7 @@ const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
 
   try {
     let fromEmail = 'noreply@specchietto.app';
-    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    if (RESEND_FROM) { const match = RESEND_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
     await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore richiesta recensione:', err);
@@ -1666,7 +1666,7 @@ Piattaforma ${brandName}`;
 
     // Invia l'email tramite il servizio configurato
     transporter.emails.send({
-      from: SMTP_FROM || `"${brandName}" <noreply@specchietto.app>`,
+      from: RESEND_FROM || `"${brandName}" <noreply@specchietto.app>`,
       to: email,
       subject: mailSubject,
       text: mailBody,
@@ -2904,8 +2904,8 @@ app.get('/api/test-email', async (req, res) => {
     }
     
     let fromEmail = RESEND_FROM;
-    if (process.env.SMTP_FROM) { 
-      const match = process.env.SMTP_FROM.match(/<([^>]+)>/); 
+    if (process.env.RESEND_FROM) { 
+      const match = process.env.RESEND_FROM.match(/<([^>]+)>/); 
       if (match && match[1]) fromEmail = match[1]; 
     }
 
