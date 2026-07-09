@@ -162,7 +162,20 @@ export const useSpecchiettoSync = () => {
       throw e instanceof Error ? e : new Error('Errore di rete durante il pagamento.');
     }
   }, [restaurantId, authHeaders, refreshTransactions, refreshAppointments, refreshCustomers]);
-  
+
+  // Crea un link di pagamento Stripe per incassare un appuntamento dalla cassa (alternativa a contanti/carta manuale)
+  const createStripePaymentLink = useCallback(async (appointmentId, totalAmount, items, discountCode) => {
+    const res = await fetch(`${backendUrl}/api/stripe/create-payment-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ restaurant_id: restaurantId, appointment_id: appointmentId, total_amount: totalAmount, items, discount_code: discountCode })
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(data.error || 'Errore nella creazione del link di pagamento.');
+    return data.url;
+  }, [restaurantId, authHeaders]);
+
   const refreshReviews = useCallback(async () => {
     if (!restaurantId || !token) return;
     try {
@@ -474,6 +487,7 @@ export const useSpecchiettoSync = () => {
     deleteResource,
     updateResource,
     setResourcePermissions,
+    createStripePaymentLink,
     createService,
     deleteService,
     setResourceHours,

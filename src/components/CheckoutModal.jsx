@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { X, Euro, CreditCard, Wallet, Plus, Trash2, CheckCircle } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { X, Euro, CreditCard, Wallet, Link as LinkIcon, Plus, Trash2, CheckCircle, Copy } from 'lucide-react';
+import { getBackendUrl } from '../services/backendUrl';
 
 export const CheckoutModal = ({ appointment, sync, onClose }) => {
   const [items, setItems] = useState([{ desc: appointment.service_name, price: Number(appointment.price) }]);
@@ -10,12 +11,17 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [paymentLink, setPaymentLink] = useState('');
+  const [waitingPayment, setWaitingPayment] = useState(false);
+  const pollRef = useRef(null);
+
+  const depositAlready = (appointment.deposit_amount > 0 && appointment.deposit_paid === 1) ? Number(appointment.deposit_amount) : 0;
 
   const discountValue = useMemo(() => {
     if (!discountCode || !sync.coupons) return 0;
     const codeObj = sync.coupons.find(c => c.code.toLowerCase() === discountCode.toLowerCase());
     if (!codeObj) return 0;
-    
+
     const subtotal = items.reduce((acc, i) => acc + i.price, 0);
     if (codeObj.type === 'percentage') {
       return (subtotal * codeObj.value) / 100;
@@ -24,7 +30,7 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
   }, [discountCode, items, sync.coupons]);
 
   const subtotal = items.reduce((acc, i) => acc + i.price, 0);
-  const total = Math.max(0, subtotal - discountValue);
+  const total = Math.max(0, subtotal - discountValue - depositAlready);
 
   const handleAddItem = (e) => {
     e.preventDefault();
@@ -39,9 +45,47 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  // Mentre siamo in attesa del pagamento tramite link Stripe, controlla periodicamente
+  // se il webhook ha già segnato l'appuntamento come "completed" (pagato).
+  useEffect(() => {
+    if (!waitingPayment) return;
+    const backendUrl = getBackendUrl();
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${backendUrl}/api/appointments/${appointment.id}`);
+        if (res.ok) {
+          const apt = await res.json();
+          if (apt.status === 'completed') {
+            clearInterval(pollRef.current);
+            await sync.refreshAppointments();
+            await sync.refreshTransactions();
+            setWaitingPayment(false);
+            setSuccess(true);
+            setTimeout(onClose, 2000);
+          }
+        }
+      } catch (e) { /* riprova al prossimo giro */ }
+    }, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [waitingPayment, appointment.id, sync, onClose]);
+
   const handleCheckout = async () => {
     setProcessing(true);
     setError('');
+
+    if (paymentMethod === 'stripe_link') {
+      try {
+        const url = await sync.createStripePaymentLink(appointment.id, total, items, discountCode);
+        setPaymentLink(url);
+        setWaitingPayment(true);
+        setProcessing(false);
+      } catch (e) {
+        setProcessing(false);
+        setError(e?.message || 'Errore nella creazione del link di pagamento. Riprova.');
+      }
+      return;
+    }
+
     try {
       await sync.checkoutAppointment(appointment.id, total, paymentMethod, items, discountCode);
       setProcessing(false);
@@ -60,6 +104,26 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
           <CheckCircle size={64} color="#10b981" style={{ margin: '0 auto 16px' }} />
           <h2 style={{ color: '#0f172a', margin: '0 0 8px 0' }}>Pagamento Completato</h2>
           <p style={{ color: '#64748b', margin: 0 }}>L'appuntamento è stato chiuso e incassato.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (waitingPayment) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '40px', textAlign: 'center', maxWidth: '440px', width: '100%' }}>
+          <LinkIcon size={48} color="#38bdf8" style={{ margin: '0 auto 16px' }} />
+          <h2 style={{ color: '#0f172a', margin: '0 0 8px 0' }}>In attesa del pagamento</h2>
+          <p style={{ color: '#64748b', margin: '0 0 20px 0', fontSize: '0.9rem' }}>Invia questo link al cliente (SMS, WhatsApp, email). Questa finestra si chiuderà da sola non appena il pagamento sarà confermato.</p>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+            <input readOnly value={paymentLink} style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.8rem', color: '#334155' }} onFocus={e => e.target.select()} />
+            <button onClick={() => { navigator.clipboard.writeText(paymentLink); }} title="Copia link" style={{ padding: '10px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <Copy size={16} />
+            </button>
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '20px' }}>⏳ In attesa di conferma...</div>
+          <button onClick={() => { setWaitingPayment(false); setPaymentLink(''); }} style={{ padding: '10px 20px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'transparent', color: '#64748b', cursor: 'pointer' }}>Annulla</button>
         </div>
       </div>
     );
@@ -108,6 +172,13 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
             {discountValue > 0 && <span style={{ color: '#10b981', fontWeight: 'bold' }}>-€{discountValue.toFixed(2)}</span>}
           </div>
 
+          {depositAlready > 0 && (
+            <div style={{ marginBottom: '24px', padding: '10px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', color: '#166534', fontSize: '0.85rem', fontWeight: '600', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Acconto già pagato online</span>
+              <span>-€{depositAlready.toFixed(2)}</span>
+            </div>
+          )}
+
           {/* Payment Method */}
           <div style={{ marginBottom: '24px' }}>
             <h3 style={{ fontSize: '1rem', color: '#0f172a', margin: '0 0 12px 0' }}>Metodo di Pagamento</h3>
@@ -119,6 +190,10 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
               <button onClick={() => setPaymentMethod('cash')} style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', borderRadius: '12px', border: paymentMethod === 'cash' ? '2px solid #38bdf8' : '1px solid #e2e8f0', backgroundColor: paymentMethod === 'cash' ? '#f0f9ff' : '#fff', color: paymentMethod === 'cash' ? '#0369a1' : '#64748b', cursor: 'pointer' }}>
                 <Wallet size={24} />
                 <span style={{ fontWeight: '600' }}>Contanti</span>
+              </button>
+              <button onClick={() => setPaymentMethod('stripe_link')} style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', borderRadius: '12px', border: paymentMethod === 'stripe_link' ? '2px solid #38bdf8' : '1px solid #e2e8f0', backgroundColor: paymentMethod === 'stripe_link' ? '#f0f9ff' : '#fff', color: paymentMethod === 'stripe_link' ? '#0369a1' : '#64748b', cursor: 'pointer' }}>
+                <LinkIcon size={24} />
+                <span style={{ fontWeight: '600' }}>Link Pagamento</span>
               </button>
             </div>
           </div>
@@ -137,7 +212,7 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
               <div style={{ fontSize: '2rem', fontWeight: '900', color: '#0f172a' }}>€{total.toFixed(2)}</div>
             </div>
             <button disabled={processing} onClick={handleCheckout} style={{ padding: '16px 32px', backgroundColor: '#38bdf8', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1.1rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px 0 rgba(56,189,248,0.39)' }}>
-              <Euro size={20} /> {processing ? 'Elaborazione...' : 'Conferma e Incassa'}
+              <Euro size={20} /> {processing ? 'Elaborazione...' : (paymentMethod === 'stripe_link' ? 'Genera Link di Pagamento' : 'Conferma e Incassa')}
             </button>
           </div>
         </div>

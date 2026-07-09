@@ -10,6 +10,7 @@ import { existsSync } from 'fs';
 import admin from 'firebase-admin';
 import { config } from 'dotenv';
 import { Resend } from 'resend';
+import Stripe from 'stripe';
 import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,7 +55,50 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.log('ℹ️ File firebase-service-account.json e variabile FIREBASE_SERVICE_ACCOUNT non trovati. Le notifiche push non saranno inviate (modalità simulata).');
 }
 
+// Configurazione Stripe per acconti alla prenotazione e pagamenti dalla cassa
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+let stripeClient = null;
+if (STRIPE_SECRET_KEY) {
+  stripeClient = new Stripe(STRIPE_SECRET_KEY);
+  console.log('💳 Servizio pagamenti configurato con successo tramite Stripe.');
+} else {
+  console.log('ℹ️ STRIPE_SECRET_KEY non configurata. I pagamenti online (acconti, link di pagamento) sono disabilitati.');
+}
+
 const app = express();
+
+// Webhook Stripe: DEVE stare prima di express.json() perché la verifica della firma
+// richiede il corpo grezzo (raw) della richiesta, non quello già parsato come JSON.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripeClient || !STRIPE_WEBHOOK_SECRET) {
+    console.error('⚠️ Webhook Stripe ricevuto ma Stripe non è configurato sul server.');
+    return res.status(400).send('Stripe non configurato');
+  }
+
+  let event;
+  try {
+    const signature = req.headers['stripe-signature'];
+    event = stripeClient.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('⚠️ Firma webhook Stripe non valida:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      await handleStripeCheckoutCompleted(session);
+    }
+    res.json({ received: true });
+  } catch (err) {
+    console.error('❌ Errore durante la gestione del webhook Stripe:', err);
+    // Rispondiamo comunque 200 per evitare che Stripe continui a ritentare all'infinito
+    // un evento che fallisce sempre per un motivo non transitorio; l'errore è loggato sopra.
+    res.status(200).json({ received: true, error: err.message });
+  }
+});
+
 app.use(cors());
 app.use(express.json({ limit: '8mb' })); // alzato per permettere upload avatar come base64
 
@@ -408,6 +452,15 @@ const initDb = async () => {
     
     try {
       await dbRun(`ALTER TABLE appointments ADD COLUMN review_sent INTEGER DEFAULT 0`);
+    } catch (e) { /* column exists */ }
+
+    // Acconto Stripe alla prenotazione: importo richiesto e se è stato effettivamente pagato.
+    // deposit_amount = 0 significa che per questo appuntamento non è mai stato richiesto un acconto.
+    try {
+      await dbRun(`ALTER TABLE appointments ADD COLUMN deposit_amount REAL DEFAULT 0`);
+    } catch (e) { /* column exists */ }
+    try {
+      await dbRun(`ALTER TABLE appointments ADD COLUMN deposit_paid INTEGER DEFAULT 0`);
     } catch (e) { /* column exists */ }
 
     await dbRun(`
@@ -2940,81 +2993,10 @@ app.get('/api/appointments/:id', async (req, res) => {
 // POST crea un nuovo appuntamento (pubblica, usata dal booking del cliente)
 app.post('/api/appointments', async (req, res) => {
   try {
-    const { restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes, source, has_guarantee } = req.body;
-    if (!restaurant_id || !resource_id || !service_id || !customer_name || !date || !time) {
-      return res.status(400).json({ error: 'Campi obbligatori mancanti' });
-    }
-
-    const service = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [service_id, restaurant_id]);
-    if (!service) return res.status(404).json({ error: 'Servizio non trovato' });
-
-    let finalName = service.name;
-    let finalDuration = service.duration_minutes;
-    let finalPrice = service.price;
-
-    if (addon_id) {
-      const addon = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [addon_id, restaurant_id]);
-      if (addon) {
-        finalName = `${service.name} + ${addon.name}`;
-        finalDuration += addon.duration_minutes || 0;
-        finalPrice += addon.price || 0;
-      }
-    }
-
-    // Ricontrolla che lo slot richiesto sia ancora libero
-    const availableSlots = await calculateResourceAvailability(resource_id, date, service_id, addon_id);
-    if (!availableSlots.includes(time)) {
-      return res.status(409).json({ error: "Lo slot richiesto o l'add-on si sovrappone con un altro appuntamento" });
-    }
-
-    const id = 'apt-' + Math.random().toString(36).substr(2, 9);
-    await dbRun(
-      `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, source, has_guarantee, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?)`,
-      [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', source || 'direct', has_guarantee ? 1 : 0, Date.now()]
-    );
-
-    // Registra o aggiorna il cliente nel CRM, cosi' la lista clienti si popola da sola con le prenotazioni
-    if (customer_phone && customer_phone.trim()) {
-      const cleanPhone = customer_phone.trim();
-      const existingCustomer = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [cleanPhone, restaurant_id]);
-      if (existingCustomer) {
-        await dbRun(
-          `UPDATE customers SET name = ?, email = CASE WHEN ? != '' THEN ? ELSE email END WHERE phone = ? AND restaurant_id = ?`,
-          [customer_name.trim(), (customer_email || '').trim(), (customer_email || '').trim(), cleanPhone, restaurant_id]
-        );
-      } else {
-        await dbRun(
-          `INSERT INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, created_at) VALUES (?, ?, ?, ?, '', 0, 0, ?)`,
-          [cleanPhone, restaurant_id, customer_name.trim(), (customer_email || '').trim(), Date.now()]
-        );
-      }
-    }
-
-    const created = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
-    io.to(restaurant_id).emit('appointmentCreated', created);
-    
-    // --- SEND EMAILS ---
-    try {
-      const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
-      if (restaurant) {
-        // To Customer
-        if (created.customer_email) {
-          sendCustomerConfirmationEmail(created, restaurant);
-        }
-        // To Salon Admin
-        const admin = await dbGet('SELECT email FROM users WHERE restaurant_id = ? AND role = "merchant"', [restaurant_id]);
-        if (admin && admin.email) {
-          sendSalonNotificationEmail(created, restaurant, admin.email);
-        }
-      }
-    } catch (e) {
-      console.error("Errore invio email post-creazione appuntamento:", e);
-    }
-
+    const created = await createAppointmentRecord(req.body);
     res.json(created);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -3238,6 +3220,254 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// --- STRIPE (acconti prenotazione online + link di pagamento dalla cassa) ---
+
+class AppointmentCreationError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Logica condivisa di creazione appuntamento, usata sia dalla prenotazione diretta (senza
+// acconto) sia dal flusso Stripe (dove l'appuntamento viene creato subito, come "prenotazione
+// soft", e l'email di conferma al cliente parte solo dopo l'avvenuto pagamento).
+const createAppointmentRecord = async ({ restaurant_id, resource_id, service_id, addon_id, customer_name, customer_phone, customer_email, date, time, notes, source, has_guarantee, depositAmount, skipCustomerEmail }) => {
+  if (!restaurant_id || !resource_id || !service_id || !customer_name || !date || !time) {
+    throw new AppointmentCreationError(400, 'Campi obbligatori mancanti');
+  }
+
+  const service = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [service_id, restaurant_id]);
+  if (!service) throw new AppointmentCreationError(404, 'Servizio non trovato');
+
+  let finalName = service.name;
+  let finalDuration = service.duration_minutes;
+  let finalPrice = service.price;
+
+  if (addon_id) {
+    const addon = await dbGet('SELECT * FROM services WHERE id = ? AND restaurant_id = ?', [addon_id, restaurant_id]);
+    if (addon) {
+      finalName = `${service.name} + ${addon.name}`;
+      finalDuration += addon.duration_minutes || 0;
+      finalPrice += addon.price || 0;
+    }
+  }
+
+  // Ricontrolla che lo slot richiesto sia ancora libero
+  const availableSlots = await calculateResourceAvailability(resource_id, date, service_id, addon_id);
+  if (!availableSlots.includes(time)) {
+    throw new AppointmentCreationError(409, "Lo slot richiesto o l'add-on si sovrappone con un altro appuntamento");
+  }
+
+  const id = 'apt-' + Math.random().toString(36).substr(2, 9);
+  const depositAmountValue = depositAmount || 0;
+  await dbRun(
+    `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, source, has_guarantee, deposit_amount, deposit_paid, timestamp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?, ?, ?)`,
+    [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', source || 'direct', has_guarantee ? 1 : 0, depositAmountValue, depositAmountValue > 0 ? 0 : 1, Date.now()]
+  );
+
+  // Registra o aggiorna il cliente nel CRM, cosi' la lista clienti si popola da sola con le prenotazioni
+  if (customer_phone && customer_phone.trim()) {
+    const cleanPhone = customer_phone.trim();
+    const existingCustomer = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [cleanPhone, restaurant_id]);
+    if (existingCustomer) {
+      await dbRun(
+        `UPDATE customers SET name = ?, email = CASE WHEN ? != '' THEN ? ELSE email END WHERE phone = ? AND restaurant_id = ?`,
+        [customer_name.trim(), (customer_email || '').trim(), (customer_email || '').trim(), cleanPhone, restaurant_id]
+      );
+    } else {
+      await dbRun(
+        `INSERT INTO customers (phone, restaurant_id, name, email, notes, no_show_count, blocked, created_at) VALUES (?, ?, ?, ?, '', 0, 0, ?)`,
+        [cleanPhone, restaurant_id, customer_name.trim(), (customer_email || '').trim(), Date.now()]
+      );
+    }
+  }
+
+  const created = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
+  io.to(restaurant_id).emit('appointmentCreated', created);
+
+  // --- SEND EMAILS ---
+  try {
+    const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+    if (restaurant) {
+      // Al cliente: saltata se è in attesa di pagamento dell'acconto, partirà dal webhook Stripe a pagamento confermato
+      if (created.customer_email && !skipCustomerEmail) {
+        sendCustomerConfirmationEmail(created, restaurant);
+      }
+      // Al titolare del salone: sempre, così vede subito anche le prenotazioni in attesa di acconto
+      const adminUser = await dbGet('SELECT email FROM users WHERE restaurant_id = ? AND role = "merchant"', [restaurant_id]);
+      if (adminUser && adminUser.email) {
+        sendSalonNotificationEmail(created, restaurant, adminUser.email);
+      }
+    }
+  } catch (e) {
+    console.error("Errore invio email post-creazione appuntamento:", e);
+  }
+
+  return created;
+};
+
+// Pubblica: crea la prenotazione (in attesa di acconto) e restituisce l'URL di Stripe Checkout
+app.post('/api/stripe/create-booking-session', async (req, res) => {
+  try {
+    if (!stripeClient) return res.status(400).json({ error: 'I pagamenti online non sono al momento disponibili.' });
+
+    const { restaurant_id } = req.body;
+    if (!restaurant_id) return res.status(400).json({ error: 'restaurant_id obbligatorio' });
+
+    const settingsRows = await dbAll('SELECT key, value FROM settings WHERE restaurant_id = ?', [restaurant_id]);
+    const settings = {};
+    settingsRows.forEach(s => { settings[s.key] = s.value; });
+
+    if (settings.stripe_enabled !== '1' || settings.stripe_type !== 'deposit') {
+      return res.status(400).json({ error: 'Acconto online non attivo per questo salone.' });
+    }
+    const depositAmount = parseFloat(settings.stripe_amount || '0');
+    if (!depositAmount || depositAmount <= 0) {
+      return res.status(400).json({ error: "Importo dell'acconto non configurato correttamente." });
+    }
+
+    const created = await createAppointmentRecord({ ...req.body, has_guarantee: true, depositAmount, skipCustomerEmail: true });
+
+    const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app';
+
+    const session = await stripeClient.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          product_data: { name: `Acconto prenotazione - ${created.service_name}${restaurant ? ' presso ' + restaurant.name : ''}` },
+          unit_amount: Math.round(depositAmount * 100)
+        },
+        quantity: 1
+      }],
+      customer_email: created.customer_email || undefined,
+      success_url: `${frontendUrl}/#/conferma-pagamento/${created.id}`,
+      cancel_url: `${frontendUrl}/#/prenota?business=${restaurant?.slug || ''}`,
+      metadata: { kind: 'booking_deposit', appointment_id: created.id, restaurant_id }
+    });
+
+    res.json({ url: session.url, appointment_id: created.id });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// Protetta: il gestionale genera un link di pagamento Stripe per incassare un appuntamento
+// (alternativa a "Contanti"/"Carta manuale" nella cassa interna)
+app.post('/api/stripe/create-payment-link', requireAuth, async (req, res) => {
+  try {
+    if (!stripeClient) return res.status(400).json({ error: 'I pagamenti online non sono al momento disponibili.' });
+
+    const { restaurant_id, appointment_id, total_amount, items, discount_code } = req.body;
+    if (!checkScope(req, res, restaurant_id)) return;
+
+    const apt = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment_id]);
+    if (!apt) return res.status(404).json({ error: 'Appuntamento non trovato' });
+    if (!canManageAppointment(req.user, apt)) return res.status(403).json({ error: 'Puoi incassare solo i tuoi appuntamenti.' });
+    if (!total_amount || total_amount <= 0) return res.status(400).json({ error: 'Importo non valido' });
+
+    const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app';
+
+    const session = await stripeClient.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'eur',
+          product_data: { name: `${apt.service_name || 'Servizio'} - ${restaurant?.name || 'Salone'}` },
+          unit_amount: Math.round(total_amount * 100)
+        },
+        quantity: 1
+      }],
+      customer_email: apt.customer_email || undefined,
+      success_url: `${frontendUrl}/#/pagamento-completato`,
+      cancel_url: `${frontendUrl}/#/pagamento-annullato`,
+      metadata: { kind: 'pos_payment', appointment_id, restaurant_id, items: JSON.stringify(items || []), discount_code: discount_code || '' }
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Gestisce l'evento 'checkout.session.completed' ricevuto dal webhook Stripe (vedi sopra, prima di express.json())
+const handleStripeCheckoutCompleted = async (session) => {
+  const metadata = session.metadata || {};
+
+  if (metadata.kind === 'booking_deposit') {
+    const appointment = await dbGet('SELECT * FROM appointments WHERE id = ?', [metadata.appointment_id]);
+    if (!appointment) { console.error('Webhook Stripe: appuntamento non trovato per acconto', metadata.appointment_id); return; }
+    if (appointment.deposit_paid === 1) return; // già processato, evita doppioni se il webhook arriva più volte
+
+    await dbRun('UPDATE appointments SET deposit_paid = 1 WHERE id = ?', [appointment.id]);
+    const updated = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment.id]);
+    io.to(appointment.restaurant_id).emit('appointmentUpdated', updated);
+
+    // Solo ora, con l'acconto confermato, mandiamo la mail di conferma al cliente
+    try {
+      const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [appointment.restaurant_id]);
+      if (restaurant && updated.customer_email) {
+        await sendCustomerConfirmationEmail(updated, restaurant);
+      }
+    } catch (e) {
+      console.error('Errore invio email conferma dopo pagamento acconto:', e);
+    }
+    return;
+  }
+
+  if (metadata.kind === 'pos_payment') {
+    const appointment = await dbGet('SELECT * FROM appointments WHERE id = ?', [metadata.appointment_id]);
+    if (!appointment) { console.error('Webhook Stripe: appuntamento non trovato per pagamento cassa', metadata.appointment_id); return; }
+
+    const already = await dbGet('SELECT id FROM transactions WHERE appointment_id = ?', [appointment.id]);
+    if (already) return; // già incassato (evita doppioni e conflitti con l'UNIQUE su appointment_id)
+
+    const amountTotal = (session.amount_total || 0) / 100;
+    let items = [];
+    try { items = JSON.parse(metadata.items || '[]'); } catch (e) {}
+
+    const txId = crypto.randomUUID();
+    await dbRun(
+      'INSERT INTO transactions (id, restaurant_id, appointment_id, customer_name, customer_phone, total_amount, payment_method, items, discount_code, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [txId, appointment.restaurant_id, appointment.id, appointment.customer_name, appointment.customer_phone, amountTotal, 'stripe_link', JSON.stringify(items), metadata.discount_code || '', Date.now()]
+    );
+    await dbRun('UPDATE appointments SET status = ?, price = ? WHERE id = ?', ['completed', amountTotal, appointment.id]);
+
+    if (appointment.status !== 'completed') {
+      // 1. Email recensione
+      if (appointment.customer_email && appointment.survey_sent === 0) {
+        try {
+          const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [appointment.restaurant_id]);
+          const googleLink = restaurant?.google_review_link || null;
+          const sent = await sendReviewEmail(appointment, restaurant, googleLink);
+          if (sent) await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [appointment.id]);
+        } catch (e) {
+          console.error('Errore invio email recensione dal pagamento Stripe cassa:', e);
+        }
+      }
+      // 2. Punti fedeltà
+      if (appointment.customer_phone && amountTotal > 0) {
+        const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [appointment.restaurant_id]);
+        if (restaurant && restaurant.loyalty_enabled === 1) {
+          const points = Math.floor(amountTotal * (restaurant.loyalty_points_per_euro || 1));
+          if (points > 0) {
+            await dbRun('UPDATE customers SET loyalty_points = loyalty_points + ? WHERE phone = ? AND restaurant_id = ?', [points, appointment.customer_phone, appointment.restaurant_id]);
+          }
+        }
+      }
+    }
+
+    const updatedApt = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment.id]);
+    io.to(appointment.restaurant_id).emit('appointmentUpdated', updatedApt);
+  }
+};
 
 // --- REVIEWS ENDPOINTS ---
 app.get('/api/reviews', requireAuth, async (req, res) => {

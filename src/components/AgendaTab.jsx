@@ -159,10 +159,10 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
           {['pending', 'accepted'].includes(appointment.status) && (
             <div style={{ flexBasis: '100%', display: 'flex', gap: '10px', marginTop: '6px' }}>
               <button disabled={busy} onClick={() => {
-                if (appointment.has_guarantee === 1) {
-                  if (confirm(`Questo appuntamento è protetto da Stripe.\nVuoi addebitare la penale / trattenere il deposito di ${sync.settings?.stripe_amount || 15}€ sulla carta del cliente?`)) {
-                    alert('Simulazione addebito Stripe effettuata con successo.');
-                  }
+                if (appointment.has_guarantee === 1 && appointment.deposit_amount > 0 && appointment.deposit_paid === 1) {
+                  alert(`Il cliente aveva già pagato un acconto di ${appointment.deposit_amount}€ per questa prenotazione: non verrà rimborsato.`);
+                } else if (appointment.has_guarantee === 1) {
+                  alert('Questo appuntamento è protetto da carta ("Solo Penale"), ma l\'addebito automatico della penale non è ancora attivo: per ora, l\'unico incasso reale possibile è tramite acconto anticipato ("Deposito Anticipato") nelle impostazioni Marketing.');
                 }
                 runAction('noshow');
               }} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #f87171', background: '#fff', color: '#f87171', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' }}>No-show</button>

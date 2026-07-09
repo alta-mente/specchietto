@@ -223,6 +223,45 @@ export const BookingPage = ({ businessSlug }) => {
     setConfirmedAppointment(data);
   };
 
+  // Crea la prenotazione (in attesa di acconto) e reindirizza a Stripe Checkout per il pagamento reale
+  const startStripeDeposit = async () => {
+    setSubmitting(true);
+    setSubmitError('');
+    const resourceId = anyPreference ? slotMap[selectedTime] : selectedResource.id;
+    try {
+      const res = await fetch(`${backendUrl}/api/stripe/create-booking-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurant_id: restaurant.id,
+          resource_id: resourceId,
+          service_id: selectedService.id,
+          addon_id: selectedAddon?.id,
+          customer_name: customerName.trim(),
+          customer_phone: customerPhone.trim(),
+          customer_email: customerEmail.trim(),
+          date,
+          time: selectedTime,
+          notes: notes.trim(),
+          source
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSubmitting(false);
+        setSubmitError(data.error || 'Errore durante la creazione del pagamento. Riprova.');
+        return;
+      }
+      storageService.setItem('customer_name', customerName.trim());
+      storageService.setItem('customer_phone', customerPhone.trim());
+      storageService.setItem('customer_email', customerEmail.trim());
+      window.location.href = data.url; // Redirect a Stripe Checkout (pagina ospitata, sicura)
+    } catch (e) {
+      setSubmitting(false);
+      setSubmitError('Errore di rete durante la creazione del pagamento. Riprova.');
+    }
+  };
+
   const inputStyle = { 
     padding: '16px', borderRadius: '12px', border: '1px solid var(--glass-border)', 
     backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff', fontSize: '1rem', 
@@ -476,47 +515,41 @@ export const BookingPage = ({ businessSlug }) => {
               ← Modifica dati
             </button>
             <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '8px', letterSpacing: '-0.5px' }}>Protezione Prenotazione</h2>
-            <p style={{ color: '#94a3b8', marginBottom: '24px', lineHeight: '1.5' }}>
-              {restaurant.settings?.stripe_type === 'fee' 
-                ? `Per confermare l'appuntamento, richiediamo una carta a garanzia. Non ti sarà addebitato nulla ora, ma solo in caso di mancata presentazione (Penale: ${restaurant.settings?.stripe_amount}€).`
-                : `Per confermare l'appuntamento è richiesto un acconto di ${restaurant.settings?.stripe_amount}€. L'importo verrà scalato dal totale in salone.`}
-            </p>
 
-            {/* Fake Credit Card Form */}
-            <div className="glass-card" style={{ padding: '24px', marginBottom: '32px', border: `1px solid ${brandPrimary}44` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontWeight: '600', color: '#fff', letterSpacing: '2px' }}>CARTA DI CREDITO</span>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <div style={{ width: '24px', height: '16px', backgroundColor: '#eb001b', borderRadius: '2px' }}></div>
-                  <div style={{ width: '24px', height: '16px', backgroundColor: '#f79e1b', borderRadius: '2px', marginLeft: '-12px', mixBlendMode: 'multiply' }}></div>
+            {restaurant.settings?.stripe_type === 'deposit' ? (
+              <>
+                <p style={{ color: '#94a3b8', marginBottom: '24px', lineHeight: '1.5' }}>
+                  Per confermare l'appuntamento è richiesto un acconto di {restaurant.settings?.stripe_amount}€, da pagare ora con carta. L'importo verrà scalato dal totale in salone.
+                </p>
+                <button
+                  disabled={submitting}
+                  onClick={startStripeDeposit}
+                  className="glow-button"
+                  style={{ padding: '18px', width: '100%', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: '#059669', boxShadow: '0 0 20px rgba(5,150,105,0.4)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  {submitting ? 'Reindirizzamento...' : `Paga Acconto di ${restaurant.settings?.stripe_amount}€`} <Sparkles size={20} />
+                </button>
+                <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '1rem' }}>🔒</span> Verrai reindirizzato a Stripe, pagamento sicuro e crittografato
                 </div>
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <input type="text" placeholder="0000 0000 0000 0000" style={{ ...inputStyle, letterSpacing: '2px', fontFamily: 'monospace', fontSize: '1.2rem' }} />
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <input type="text" placeholder="MM/YY" style={{ ...inputStyle, flex: 1, textAlign: 'center' }} />
-                  <input type="text" placeholder="CVC" style={{ ...inputStyle, flex: 1, textAlign: 'center' }} />
-                </div>
-                <input type="text" placeholder="NOME SULLA CARTA" style={{ ...inputStyle, textTransform: 'uppercase' }} />
-              </div>
-            </div>
-
-            <button 
-              disabled={submitting} 
-              onClick={async () => {
-                setSubmitting(true);
-                await new Promise(r => setTimeout(r, 1500));
-                await executeBooking(true);
-              }}
-              className="glow-button" 
-              style={{ padding: '18px', width: '100%', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: '#059669', boxShadow: '0 0 20px rgba(5,150,105,0.4)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              {submitting ? 'Autorizzazione...' : (restaurant.settings?.stripe_type === 'fee' ? 'Autorizza Carta' : 'Paga Acconto')} <Sparkles size={20} />
-            </button>
-            <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '1rem' }}>🔒</span> Pagamento 100% sicuro e crittografato (Test Mode)
-            </div>
+                {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '12px' }}>{submitError}</div>}
+              </>
+            ) : (
+              <>
+                <p style={{ color: '#94a3b8', marginBottom: '24px', lineHeight: '1.5' }}>
+                  Questo salone richiede una carta a garanzia per confermare l'appuntamento, ma questa modalità non è ancora disponibile online. Puoi comunque confermare la prenotazione senza carta: il salone ti contatterà se necessario.
+                </p>
+                <button
+                  disabled={submitting}
+                  onClick={() => executeBooking(false)}
+                  className="glow-button"
+                  style={{ padding: '18px', width: '100%', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: `linear-gradient(135deg, ${brandPrimary}, ${brandAccent})`, boxShadow: `0 0 20px ${brandPrimary}66` }}
+                >
+                  {submitting ? 'Elaborazione...' : 'Conferma senza carta'} <ArrowRight size={20} />
+                </button>
+                {submitError && <div style={{ color: '#ef4444', textAlign: 'center', marginTop: '12px' }}>{submitError}</div>}
+              </>
+            )}
           </div>
         )}
 

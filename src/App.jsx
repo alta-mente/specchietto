@@ -6,10 +6,15 @@ import { BookingPage } from './components/BookingPage';
 import { ReviewPage } from './components/ReviewPage';
 import { LandingPage } from './components/LandingPage';
 import { MobileApp } from './components/MobileApp';
+import { BookingConfirmationPage } from './components/BookingConfirmationPage';
 import { Capacitor } from '@capacitor/core';
 
 const getView = () => {
   const hash = window.location.hash;
+  if (hash.startsWith('#/conferma-pagamento/')) {
+    const appointmentId = hash.split('#/conferma-pagamento/')[1];
+    return { view: 'payment-confirmation', appointmentId };
+  }
   if (hash.startsWith('#/prenota')) {
     const query = hash.split('?')[1] || '';
     const params = new URLSearchParams(query);
@@ -28,6 +33,14 @@ function App() {
   // niente landing page marketing né flussi cliente (prenotazione/recensione), che restano
   // solo sul sito web. All'avvio va sempre alla vista gestionale (login o dashboard se già loggati).
   const { view, businessSlug } = Capacitor.isNativePlatform() ? { view: 'admin' } : getView();
+
+  if (view === 'payment-confirmation') {
+    return (
+      <div className="app-container">
+        <BookingConfirmationPage appointmentId={getView().appointmentId} />
+      </div>
+    );
+  }
 
   if (view === 'booking') {
     return (

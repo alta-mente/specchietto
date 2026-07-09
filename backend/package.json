@@ -17,7 +17,8 @@
     "nodemailer": "^8.0.10",
     "resend": "^6.17.2",
     "socket.io": "^4.7.5",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "stripe": "^22.3.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
