@@ -3665,7 +3665,7 @@ app.post('/api/waitlist', async (req, res) => {
     // Auto-create customer in CRM if missing
     await dbRun(`
       INSERT OR IGNORE INTO customers (phone, restaurant_id, name, email, created_at)
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?)
     `, [customer_phone.trim(), restaurant_id, customer_name.trim(), (customer_email || '').trim(), Date.now()]);
 
     const row = await dbGet('SELECT * FROM waitlist WHERE id = ?', [id]);
