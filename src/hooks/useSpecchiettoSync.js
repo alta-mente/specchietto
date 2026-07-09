@@ -228,6 +228,16 @@ export const useSpecchiettoSync = () => {
     return res.ok;
   }, [authHeaders, refreshResources]);
 
+  const setResourcePermissions = useCallback(async (id, permissions) => {
+    const res = await fetch(`${backendUrl}/api/resources/${id}/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ permissions })
+    });
+    if (res.ok) await refreshResources();
+    return res.ok;
+  }, [authHeaders, refreshResources]);
+
   const createService = useCallback(async (name, category, durationMinutes, price, isAddon = false) => {
     const res = await fetch(`${backendUrl}/api/services`, {
       method: 'POST',
@@ -463,6 +473,7 @@ export const useSpecchiettoSync = () => {
     createResource,
     deleteResource,
     updateResource,
+    setResourcePermissions,
     createService,
     deleteService,
     setResourceHours,

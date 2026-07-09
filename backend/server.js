@@ -326,6 +326,8 @@ const initDb = async () => {
 
     // 11. Create services table (servizi con durata, sostituisce il menu piatti)
     try { await dbRun("ALTER TABLE resources ADD COLUMN user_id TEXT"); } catch(e) {}
+    // Permessi extra concessi dal titolare a questo dipendente (JSON array di chiavi, vedi PERMISSION_KEYS)
+    try { await dbRun("ALTER TABLE resources ADD COLUMN permissions TEXT DEFAULT '[]'"); } catch(e) {}
 
     await dbRun(`
       CREATE TABLE IF NOT EXISTS services (
@@ -1360,6 +1362,8 @@ const generateToken = (user) => {
     user_id: user.id,
     restaurant_id: user.restaurant_id,
     role: user.role,
+    resource_id: user.resource_id || null,
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
     expires_at: Date.now() + 30 * 24 * 3600 * 1000 // 30 giorni
   };
   const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -1405,11 +1409,13 @@ const requireAuth = async (req, res, next) => {
       req.user = {
         id: tokenData.user_id,
         restaurant_id: tokenData.restaurant_id,
-        role: tokenData.role
+        role: tokenData.role,
+        resource_id: tokenData.resource_id || null,
+        permissions: Array.isArray(tokenData.permissions) ? tokenData.permissions : []
       };
       return next();
     }
-    
+
     // 2. Fallback per le sessioni legacy nel database
     const session = await dbGet('SELECT * FROM sessions WHERE token = ?', [token]);
     if (session) {
@@ -1441,6 +1447,32 @@ const checkScope = (req, res, resourceRestaurantId) => {
   return true;
 };
 
+// Permessi extra assegnabili dal titolare a un dipendente (ruolo 'staff').
+// Per default un dipendente vede solo la propria agenda (isolato); ogni chiave qui
+// sblocca l'accesso a un'area in più del gestionale.
+const PERMISSION_KEYS = ['view_all_appointments', 'overview', 'clients', 'resources', 'services', 'reviews', 'marketing', 'settings'];
+
+// true se l'utente può operare su quell'area: sempre vero per chi non è staff
+// (merchant/super_admin), per lo staff solo se il permesso è stato concesso.
+const hasPermission = (user, key) => {
+  if (!user || user.role !== 'staff') return true;
+  return Array.isArray(user.permissions) && user.permissions.includes(key);
+};
+
+// Helper per le route protette: risponde 403 se lo staff non ha il permesso richiesto.
+const requirePermission = (req, res, key) => {
+  if (hasPermission(req.user, key)) return true;
+  res.status(403).json({ error: 'Il titolare non ti ha concesso l\'accesso a questa sezione.' });
+  return false;
+};
+
+// Un dipendente senza il permesso "vedi tutta l'agenda" può gestire solo i propri appuntamenti
+const canManageAppointment = (user, appointment) => {
+  if (user.role !== 'staff') return true;
+  if (hasPermission(user, 'view_all_appointments')) return true;
+  return appointment.resource_id === user.resource_id;
+};
+
 // POST login
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -1467,16 +1499,30 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
     
+    // Per lo staff: recupera la risorsa (operatore) collegata, per filtrare il calendario alla sola agenda
+    // personale e per sapere quali permessi extra gli ha concesso il titolare
+    let resourceId = null;
+    let permissions = [];
+    if (user.role === 'staff') {
+      const linkedResource = await dbGet('SELECT id, permissions FROM resources WHERE user_id = ?', [user.id]);
+      resourceId = linkedResource ? linkedResource.id : null;
+      if (linkedResource?.permissions) {
+        try { permissions = JSON.parse(linkedResource.permissions); } catch (e) { permissions = []; }
+      }
+    }
+
     // Genera token di sessione stateless (valido 30 giorni)
-    const token = generateToken(user);
-    
+    const token = generateToken({ ...user, resource_id: resourceId, permissions });
+
     res.json({
       token,
       user: {
         id: user.id,
         email: user.email,
         role: user.role,
-        restaurant_id: user.restaurant_id
+        restaurant_id: user.restaurant_id,
+        resource_id: resourceId,
+        permissions
       }
     });
   } catch (err) {
@@ -1626,7 +1672,8 @@ app.post('/api/settings', requireAuth, async (req, res) => {
   try {
     const { restaurant_id, settings } = req.body;
     if (!checkScope(req, res, restaurant_id)) return;
-    
+    if (!requirePermission(req, res, 'settings')) return;
+
     for (const [key, value] of Object.entries(settings)) {
       await dbRun(`
         INSERT INTO settings (restaurant_id, key, value)
@@ -1907,7 +1954,7 @@ app.get('/api/super-admin/restaurants', requireAuth, async (req, res) => {
     const restaurants = await dbAll(`
       SELECT r.id, r.name, r.slug, r.active, r.plan, r.created_at, u.email as admin_email
       FROM restaurants r
-      LEFT JOIN users u ON u.restaurant_id = r.id AND u.role = 'admin'
+      LEFT JOIN users u ON u.restaurant_id = r.id AND u.role = 'merchant'
       ORDER BY r.created_at DESC
     `);
     res.json(restaurants);
@@ -2089,28 +2136,12 @@ app.delete('/api/restaurants/:id', requireAuth, async (req, res) => {
   }
 });
 
-// GET all settings for a specific restaurant
-app.get('/api/settings', async (req, res) => {
-  try {
-    const restaurantId = req.query.restaurant_id || 'rest-1';
-    const rows = await dbAll('SELECT * FROM settings WHERE restaurant_id = ?', [restaurantId]);
-    const settingsObj = {};
-    rows.forEach(r => {
-      settingsObj[r.key] = r.value;
-    });
-
-    res.json(settingsObj);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST save/update settings
 // CRM Customer endpoints
 app.get('/api/customers', requireAuth, async (req, res) => {
   try {
     const restaurantId = req.query.restaurant_id || 'rest-1';
     if (!checkScope(req, res, restaurantId)) return;
+    if (!requirePermission(req, res, 'clients')) return;
     const rows = await dbAll('SELECT * FROM customers WHERE restaurant_id = ? ORDER BY name ASC', [restaurantId]);
     res.json(rows);
   } catch (err) {
@@ -2123,6 +2154,7 @@ app.get('/api/customers/:phone', requireAuth, async (req, res) => {
     const { phone } = req.params;
     const restaurantId = req.query.restaurant_id || 'rest-1';
     if (!checkScope(req, res, restaurantId)) return;
+    if (!requirePermission(req, res, 'clients')) return;
     const row = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone, restaurantId]);
     if (!row) {
       return res.status(404).json({ error: 'Cliente non trovato' });
@@ -2138,6 +2170,7 @@ app.post('/api/customers', requireAuth, async (req, res) => {
     const { phone, restaurant_id, name, email, notes, no_show_count, blocked } = req.body;
     const targetRestaurantId = restaurant_id || 'rest-1';
     if (!checkScope(req, res, targetRestaurantId)) return;
+    if (!requirePermission(req, res, 'clients')) return;
 
     if (!phone || !name) {
       return res.status(400).json({ error: 'Telefono e Nome sono obbligatori' });
@@ -2163,6 +2196,7 @@ app.post('/api/customers/import', requireAuth, async (req, res) => {
     const { customers, restaurant_id } = req.body;
     const targetRestaurantId = restaurant_id || 'rest-1';
     if (!checkScope(req, res, targetRestaurantId)) return;
+    if (!requirePermission(req, res, 'clients')) return;
     
     if (!Array.isArray(customers)) {
       return res.status(400).json({ error: 'Body must contain an array of customers' });
@@ -2201,6 +2235,7 @@ app.post('/api/customers/:phone/redeem_points', requireAuth, async (req, res) =>
     const { restaurant_id, points } = req.body;
     const targetRestaurantId = restaurant_id || 'rest-1';
     if (!checkScope(req, res, targetRestaurantId)) return;
+    if (!requirePermission(req, res, 'clients')) return;
 
     const cust = await dbGet('SELECT * FROM customers WHERE phone = ? AND restaurant_id = ?', [phone.trim(), targetRestaurantId]);
     if (!cust) return res.status(404).json({ error: 'Cliente non trovato' });
@@ -2226,6 +2261,7 @@ app.delete('/api/customers/:phone', requireAuth, async (req, res) => {
     const { phone } = req.params;
     const restaurantId = req.query.restaurant_id || 'rest-1';
     if (!checkScope(req, res, restaurantId)) return;
+    if (!requirePermission(req, res, 'clients')) return;
     await dbRun('DELETE FROM customers WHERE phone = ? AND restaurant_id = ?', [phone, restaurantId]);
     res.json({ success: true });
   } catch (err) {
@@ -2395,8 +2431,9 @@ app.get('/api/resources', async (req, res) => {
       
       resource.hours = hours;
       resource.services = services.map(s => s.service_id);
+      try { resource.permissions = resource.permissions ? JSON.parse(resource.permissions) : []; } catch (e) { resource.permissions = []; }
     }
-    
+
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2407,6 +2444,7 @@ app.post('/api/resources', requireAuth, async (req, res) => {
   try {
     const { restaurant_id, name, type, photo_url, color } = req.body;
     if (!checkScope(req, res, restaurant_id)) return;
+    if (!requirePermission(req, res, 'resources')) return;
     if (!name) return res.status(400).json({ error: 'Nome obbligatorio' });
     const id = 'res-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
@@ -2427,6 +2465,7 @@ app.put('/api/resources/:id', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!requirePermission(req, res, 'resources')) return;
     const { name, type, photo_url, color, active } = req.body;
     await dbRun(
       'UPDATE resources SET name = ?, type = ?, photo_url = ?, color = ?, active = ? WHERE id = ?',
@@ -2449,6 +2488,7 @@ app.post('/api/resources/:id/user', requireAuth, async (req, res) => {
     const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [req.params.id]);
     if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
     if (!checkScope(req, res, resource.restaurant_id)) return;
+    if (!requirePermission(req, res, 'resources')) return;
 
     const existingUser = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUser) return res.status(400).json({ error: 'Email già in uso da un altro account' });
@@ -2470,12 +2510,38 @@ app.post('/api/resources/:id/user', requireAuth, async (req, res) => {
   }
 });
 
+// Il titolare concede/revoca permessi extra a un dipendente
+app.put('/api/resources/:id/permissions', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permissions } = req.body;
+    if (!Array.isArray(permissions)) return res.status(400).json({ error: 'Formato permessi non valido' });
+
+    const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
+    if (!checkScope(req, res, existing.restaurant_id)) return;
+    // Solo chi non è staff (titolare/super_admin) può assegnare permessi
+    if (req.user.role === 'staff') return res.status(403).json({ error: 'Solo il titolare può gestire i permessi.' });
+
+    const cleaned = permissions.filter(p => PERMISSION_KEYS.includes(p));
+    await dbRun('UPDATE resources SET permissions = ? WHERE id = ?', [JSON.stringify(cleaned), id]);
+
+    const updated = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
+    updated.permissions = cleaned;
+    io.to(existing.restaurant_id).emit('resourcesUpdated', { action: 'update', resource: updated });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/resources/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!requirePermission(req, res, 'resources')) return;
     await dbRun('DELETE FROM resources WHERE id = ?', [id]);
     await dbRun('DELETE FROM resource_services WHERE resource_id = ?', [id]);
     await dbRun('DELETE FROM resource_hours WHERE resource_id = ?', [id]);
@@ -2505,6 +2571,7 @@ app.put('/api/resources/:id/hours', requireAuth, async (req, res) => {
     const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
     if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
     if (!checkScope(req, res, resource.restaurant_id)) return;
+    if (!requirePermission(req, res, 'resources')) return;
     const { hours } = req.body;
     if (!Array.isArray(hours)) return res.status(400).json({ error: 'hours deve essere un array' });
 
@@ -2573,6 +2640,7 @@ app.put('/api/resources/:id/services', requireAuth, async (req, res) => {
     const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
     if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
     if (!checkScope(req, res, resource.restaurant_id)) return;
+    if (!requirePermission(req, res, 'resources')) return;
     const { service_ids } = req.body;
     if (!Array.isArray(service_ids)) return res.status(400).json({ error: 'service_ids deve essere un array' });
 
@@ -2602,6 +2670,7 @@ app.post('/api/coupons', requireAuth, async (req, res) => {
   try {
     const { restaurant_id, code, discount_type, discount_value } = req.body;
     if (!checkScope(req, res, restaurant_id)) return;
+    if (!requirePermission(req, res, 'marketing')) return;
     if (!code || !discount_type || !discount_value) return res.status(400).json({ error: 'Codice, tipo e valore obbligatori' });
     
     const id = 'coup-' + Math.random().toString(36).substr(2, 9);
@@ -2621,6 +2690,7 @@ app.delete('/api/coupons/:id', requireAuth, async (req, res) => {
   try {
     const restaurant_id = req.query.restaurant_id;
     if (!checkScope(req, res, restaurant_id)) return;
+    if (!requirePermission(req, res, 'marketing')) return;
     await dbRun('DELETE FROM coupons WHERE id = ? AND restaurant_id = ?', [req.params.id, restaurant_id]);
     io.to(restaurant_id).emit('couponsUpdated', { action: 'delete', id: req.params.id });
     res.json({ success: true });
@@ -2645,6 +2715,7 @@ app.post('/api/services', requireAuth, async (req, res) => {
   try {
     const { restaurant_id, category, name, description, price, duration_minutes, is_addon } = req.body;
     if (!checkScope(req, res, restaurant_id)) return;
+    if (!requirePermission(req, res, 'services')) return;
     if (!name || !duration_minutes) return res.status(400).json({ error: 'Nome e durata sono obbligatori' });
     const id = 'svc-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
@@ -2665,6 +2736,7 @@ app.put('/api/services/:id', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Servizio non trovato' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!requirePermission(req, res, 'services')) return;
     const { category, name, description, price, duration_minutes, is_addon, active } = req.body;
     await dbRun(
       'UPDATE services SET category = ?, name = ?, description = ?, price = ?, duration_minutes = ?, is_addon = ?, active = ? WHERE id = ?',
@@ -2684,6 +2756,7 @@ app.delete('/api/services/:id', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM services WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Servizio non trovato' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!requirePermission(req, res, 'services')) return;
     await dbRun('DELETE FROM services WHERE id = ?', [id]);
     await dbRun('DELETE FROM resource_services WHERE service_id = ?', [id]);
     io.to(existing.restaurant_id).emit('servicesUpdated', { action: 'delete', id });
@@ -2843,7 +2916,11 @@ app.get('/api/appointments', requireAuth, async (req, res) => {
   try {
     const restaurantId = req.query.restaurant_id || 'rest-1';
     if (!checkScope(req, res, restaurantId)) return;
-    const rows = await dbAll('SELECT * FROM appointments WHERE restaurant_id = ? ORDER BY date DESC, time DESC', [restaurantId]);
+    let rows = await dbAll('SELECT * FROM appointments WHERE restaurant_id = ? ORDER BY date DESC, time DESC', [restaurantId]);
+    // Un dipendente senza il permesso "vedi tutta l'agenda" vede solo i propri appuntamenti
+    if (req.user.role === 'staff' && !hasPermission(req.user, 'view_all_appointments')) {
+      rows = rows.filter(a => a.resource_id === req.user.resource_id);
+    }
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3024,6 +3101,7 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Appuntamento non trovato' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!canManageAppointment(req.user, existing)) return res.status(403).json({ error: 'Puoi gestire solo i tuoi appuntamenti.' });
 
     await dbRun('UPDATE appointments SET status = ?, reason = ? WHERE id = ?', [status, reason || '', id]);
 
@@ -3078,6 +3156,7 @@ app.delete('/api/appointments/:id', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Appuntamento non trovato' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!canManageAppointment(req.user, existing)) return res.status(403).json({ error: 'Puoi gestire solo i tuoi appuntamenti.' });
     await dbRun('DELETE FROM appointments WHERE id = ?', [id]);
     io.to(existing.restaurant_id).emit('appointmentDeleted', { id });
     res.json({ success: true });
@@ -3091,7 +3170,13 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
   try {
     const { restaurant_id } = req.query;
     if (!checkScope(req, res, restaurant_id)) return;
-    const transactions = await dbAll('SELECT * FROM transactions WHERE restaurant_id = ? ORDER BY timestamp DESC', [restaurant_id]);
+    if (!requirePermission(req, res, 'overview')) return;
+    let transactions = await dbAll('SELECT * FROM transactions WHERE restaurant_id = ? ORDER BY timestamp DESC', [restaurant_id]);
+    if (req.user.role === 'staff' && !hasPermission(req.user, 'view_all_appointments')) {
+      const own = await dbAll('SELECT id FROM appointments WHERE resource_id = ?', [req.user.resource_id]);
+      const ownIds = new Set(own.map(a => a.id));
+      transactions = transactions.filter(t => ownIds.has(t.appointment_id));
+    }
     res.json(transactions);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3105,6 +3190,7 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
 
     const apt = await dbGet('SELECT * FROM appointments WHERE id = ?', [appointment_id]);
     if (!apt) return res.status(404).json({ error: 'Appuntamento non trovato' });
+    if (!canManageAppointment(req.user, apt)) return res.status(403).json({ error: 'Puoi incassare solo i tuoi appuntamenti.' });
 
     const id = crypto.randomUUID();
     await dbRun(
@@ -3158,6 +3244,7 @@ app.get('/api/reviews', requireAuth, async (req, res) => {
   try {
     const { restaurant_id } = req.query;
     if (!checkScope(req, res, restaurant_id)) return;
+    if (!requirePermission(req, res, 'reviews')) return;
     const rows = await dbAll('SELECT * FROM reviews WHERE restaurant_id = ? ORDER BY created_at DESC', [restaurant_id]);
     res.json(rows);
   } catch (err) {
@@ -3203,6 +3290,7 @@ app.post('/api/reviews/:id/reply', requireAuth, async (req, res) => {
     const existing = await dbGet('SELECT * FROM reviews WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Recensione non trovata' });
     if (!checkScope(req, res, existing.restaurant_id)) return;
+    if (!requirePermission(req, res, 'reviews')) return;
 
     await dbRun('UPDATE reviews SET response = ? WHERE id = ?', [response.trim(), id]);
     const updated = await dbGet('SELECT * FROM reviews WHERE id = ?', [id]);

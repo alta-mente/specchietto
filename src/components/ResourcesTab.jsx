@@ -175,7 +175,70 @@ const ResourceServicesEditor = ({ resource, sync }) => {
   );
 };
 
-export 
+// Deve corrispondere a PERMISSION_KEYS nel backend (server.js)
+const PERMISSION_DEFS = [
+  { key: 'view_all_appointments', label: 'Vedere il calendario di tutto il team', hint: 'Non solo i propri appuntamenti' },
+  { key: 'overview', label: 'Panoramica e incassi' },
+  { key: 'clients', label: 'Clienti (CRM)' },
+  { key: 'services', label: 'Servizi' },
+  { key: 'reviews', label: 'Recensioni' },
+  { key: 'marketing', label: 'Marketing e coupon' },
+  { key: 'settings', label: 'Impostazioni' },
+  { key: 'resources', label: 'Team', hint: 'Include creare/eliminare colleghi e i loro accessi' }
+];
+
+const ResourcePermissionsEditor = ({ resource, sync }) => {
+  const [selected, setSelected] = useState(resource.permissions || []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggle = (key) => {
+    setSelected(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    setError('');
+    const ok = await sync.setResourcePermissions(resource.id, selected);
+    setSaving(false);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } else {
+      setError('Errore nel salvataggio dei permessi.');
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #e2e8f0' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: '700', marginBottom: '4px', color: '#475569' }}>Permessi extra</div>
+      <p style={{ margin: '0 0 8px 0', fontSize: '0.78rem', color: '#94a3b8' }}>Per default vede solo la propria agenda. Concedi qui accesso alle altre sezioni.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {PERMISSION_DEFS.map(p => (
+          <label key={p.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.85rem', color: '#334155' }}>
+            <input type="checkbox" checked={selected.includes(p.key)} onChange={() => toggle(p.key)} style={{ marginTop: '3px' }} />
+            <span>
+              {p.label}
+              {p.hint && <span style={{ display: 'block', fontSize: '0.72rem', color: '#94a3b8' }}>{p.hint}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', border: 'none', backgroundColor: '#0f172a', color: '#ffffff', cursor: 'pointer', fontSize: '0.8rem' }}
+      >
+        {saving ? 'Salvo...' : saved ? '✓ Salvato' : 'Salva permessi'}
+      </button>
+      {error && <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#ef4444' }}>{error}</div>}
+    </div>
+  );
+};
+
+export
 const ResourceAuthModal = ({ resource, onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -335,8 +398,12 @@ export const ResourcesTab = ({ sync }) => {
                 <strong style={{ fontSize: '1.1rem' }}>{resource.name}</strong>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => setAuthResource(resource)} style={{ border: 'none', background: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem' }}>Crea Accesso</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {resource.user_id ? (
+                <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '600' }}>✓ Accesso attivo</span>
+              ) : (
+                <button onClick={() => setAuthResource(resource)} style={{ border: 'none', background: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '0.8rem' }}>Crea Accesso</button>
+              )}
               <button
                 onClick={async () => {
                   if (!window.confirm(`Eliminare ${resource.name} dal team? L'azione non è reversibile.`)) return;
@@ -352,6 +419,7 @@ export const ResourcesTab = ({ sync }) => {
           {authResource?.id === resource.id && <ResourceAuthModal resource={resource} onClose={() => setAuthResource(null)} />}
           <ResourceServicesEditor resource={resource} sync={sync} />
           <ResourceHoursEditor resource={resource} sync={sync} />
+          {resource.user_id && <ResourcePermissionsEditor resource={resource} sync={sync} />}
         </div>
       ))}
     </div>

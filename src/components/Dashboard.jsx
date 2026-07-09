@@ -103,7 +103,10 @@ const TenantSwitcher = ({ sync }) => {
 };
 
 export const Dashboard = ({ sync, onLogout }) => {
-  const [activeTab, setActiveTab] = useState(sync.user?.role === 'staff' ? 'agenda' : 'overview');
+  const isStaff = sync.user?.role === 'staff';
+  const staffPermissions = sync.user?.permissions || [];
+  const canSeeAllAppointments = !isStaff || staffPermissions.includes('view_all_appointments');
+  const [activeTab, setActiveTab] = useState(isStaff ? 'agenda' : 'overview');
   const isSuperAdmin = sync.user?.role === 'super_admin';
   const needsTenantSelection = isSuperAdmin && !sync.restaurantId;
   const [toast, setToast] = useState(null);
@@ -111,22 +114,22 @@ export const Dashboard = ({ sync, onLogout }) => {
   useEffect(() => {
     if (!sync.restaurantId) return;
     const socket = io(getBackendUrl());
-    
+
     socket.on('connect', () => {
       socket.emit('joinRestaurant', sync.restaurantId);
     });
 
     socket.on('appointmentCreated', (appointment) => {
-      if (sync.user?.role === 'staff' && sync.user.resource_id && appointment.resource_id !== sync.user.resource_id) return;
-      
+      if (isStaff && !canSeeAllAppointments && appointment.resource_id !== sync.user.resource_id) return;
+
       setToast(`Nuovo appuntamento da ${appointment.customer_name} (${appointment.service_name})`);
       if (sync.refreshAppointments) sync.refreshAppointments();
-      
+
       setTimeout(() => setToast(null), 5000);
     });
 
     return () => socket.disconnect();
-  }, [sync.restaurantId, sync.user]);
+  }, [sync.restaurantId, sync.user, isStaff, canSeeAllAppointments]);
 
   if (needsTenantSelection) {
     return (
@@ -180,7 +183,7 @@ export const Dashboard = ({ sync, onLogout }) => {
 
         {/* Navigation Links */}
         <nav style={{ flex: 1, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
-          {(sync.user?.role === 'staff' ? TABS.filter(t => t.id === 'agenda') : TABS).map(tab => {
+          {(isStaff ? TABS.filter(t => t.id === 'agenda' || staffPermissions.includes(t.id)) : TABS).map(tab => {
             const isLocked = tab.id === 'marketing' && sync.restaurant?.plan === 'starter';
             return (
               <button

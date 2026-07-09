@@ -20,6 +20,16 @@ export const MobileApp = ({ sync, onLogout }) => {
 
   const { appointments, services, resources } = sync;
 
+  // Un dipendente (ruolo "staff") vede solo la propria agenda, salvo che il titolare gli conceda
+  // il permesso "view_all_appointments" per vedere il calendario di tutto il team
+  const isStaff = sync.user?.role === 'staff';
+  const canSeeAllAppointments = !isStaff || (sync.user?.permissions || []).includes('view_all_appointments');
+  const staffResourceId = sync.user?.resource_id;
+  const visibleAppointments = useMemo(() => {
+    if (canSeeAllAppointments || !staffResourceId) return appointments;
+    return appointments.filter(a => a.resource_id === staffResourceId);
+  }, [appointments, canSeeAllAppointments, staffResourceId]);
+
   const todayStr = useMemo(() => {
     const d = new Date();
     const offset = d.getTimezoneOffset() * 60000;
@@ -27,16 +37,16 @@ export const MobileApp = ({ sync, onLogout }) => {
   }, []);
 
   const pendingRequests = useMemo(() => {
-    return appointments.filter(a => a.status === 'pending').sort((a, b) => {
+    return visibleAppointments.filter(a => a.status === 'pending').sort((a, b) => {
       const dateDiff = a.date.localeCompare(b.date);
       if (dateDiff !== 0) return dateDiff;
       return a.time.localeCompare(b.time);
     });
-  }, [appointments]);
+  }, [visibleAppointments]);
 
   const todayAppointments = useMemo(() => {
-    return appointments.filter(a => a.date === todayStr && (a.status === 'accepted' || a.status === 'arrived')).sort((a, b) => a.time.localeCompare(b.time));
-  }, [appointments, todayStr]);
+    return visibleAppointments.filter(a => a.date === todayStr && (a.status === 'accepted' || a.status === 'arrived')).sort((a, b) => a.time.localeCompare(b.time));
+  }, [visibleAppointments, todayStr]);
 
   const handleAction = async (id, status) => {
     await sync.updateAppointmentStatus(id, status);
