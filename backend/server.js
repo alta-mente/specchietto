@@ -409,6 +409,20 @@ const initDb = async () => {
     } catch (e) { /* column exists */ }
 
     await dbRun(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT,
+        appointment_id TEXT UNIQUE,
+        customer_name TEXT,
+        customer_phone TEXT,
+        total_amount REAL,
+        payment_method TEXT,
+        items TEXT,
+        discount_code TEXT,
+        timestamp INTEGER
+      )
+    `);
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS reviews (
         id TEXT PRIMARY KEY,
         restaurant_id TEXT,

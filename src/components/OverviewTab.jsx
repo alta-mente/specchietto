@@ -15,7 +15,7 @@ const STATUS_META = {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export const OverviewTab = ({ sync }) => {
-  const { appointments, services, customers, resources } = sync;
+  const { appointments, services, customers, resources, transactions } = sync;
 
   const stats = useMemo(() => {
     const today = new Date();
@@ -25,24 +25,36 @@ export const OverviewTab = ({ sync }) => {
     const todayAppointments = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled' && a.status !== 'declined');
     const validAppointments = appointments.filter(a => a.status === 'completed' || a.status === 'arrived');
     
-    // --- 1. Expected Revenue (Today) ---
-    let expectedRevenue = 0;
-    todayAppointments.forEach(app => {
-      const service = services.find(s => s.id === app.service_id);
-      if (service) expectedRevenue += Number(service.price) || 0;
+    // --- 1. Real Revenue from Transactions ---
+    let totalRevenue = 0;
+    let cardRevenue = 0;
+    let cashRevenue = 0;
+    
+    const serviceRevMap = {};
+
+    (transactions || []).forEach(tx => {
+      const amount = Number(tx.total_amount) || 0;
+      totalRevenue += amount;
+      
+      if (tx.payment_method === 'card') {
+        cardRevenue += amount;
+      } else {
+        cashRevenue += amount;
+      }
+
+      try {
+        const items = JSON.parse(tx.items);
+        if (items && items.length > 0) {
+          items.forEach(it => {
+            serviceRevMap[it.desc] = (serviceRevMap[it.desc] || 0) + (Number(it.price) || 0);
+          });
+        }
+      } catch(e) {}
     });
 
-    // --- 2. Revenue by Service (All time valid) ---
-    const serviceRevMap = {};
-    validAppointments.forEach(app => {
-      const srv = services.find(s => s.id === app.service_id);
-      const name = srv ? srv.name : app.service_name || 'Altro';
-      const price = srv ? Number(srv.price) : Number(app.price) || 0;
-      serviceRevMap[name] = (serviceRevMap[name] || 0) + price;
-    });
     const revenueByService = Object.entries(serviceRevMap)
       .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value).slice(0, 5); // Top 5
+      .sort((a, b) => b.value - a.value).slice(0, 5);
 
     // --- 3. Staff Performance (Appointments count) ---
     const staffCountMap = {};
@@ -92,7 +104,9 @@ export const OverviewTab = ({ sync }) => {
 
     return {
       todayAppointmentsCount: todayAppointments.length,
-      expectedRevenue,
+      totalRevenue,
+      cashRevenue,
+      cardRevenue,
       totalCustomers: customers.length,
       upcoming,
       todayStr,
@@ -105,7 +119,7 @@ export const OverviewTab = ({ sync }) => {
         { name: 'Ricorrenti (2+)', value: returningCustomers }
       ]
     };
-  }, [appointments, services, customers, resources]);
+  }, [appointments, services, customers, resources, transactions]);
 
   const StatCard = ({ title, value, icon, subtitle }) => (
     <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -129,11 +143,31 @@ export const OverviewTab = ({ sync }) => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-        <StatCard title="Appuntamenti Oggi" value={stats.todayAppointmentsCount} icon={<Calendar size={24} />} subtitle="Esclusi annullati" />
-        <StatCard title="Incasso Previsto (Oggi)" value={`€${stats.expectedRevenue.toFixed(2)}`} icon={<DollarSign size={24} />} subtitle="Basato sui listini" />
-        <StatCard title="Clienti Totali" value={stats.totalCustomers} icon={<Users size={24} />} subtitle="Rubrica" />
-        <StatCard title="Tasso di Ritorno" value={stats.retention.reduce((acc, c) => acc + c.value, 0) > 0 ? `${Math.round((stats.retention[1].value / stats.retention.reduce((acc, c) => acc + c.value, 0)) * 100)}%` : '0%'} icon={<Activity size={24} />} subtitle="Clienti fidelizzati" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+        <StatCard 
+          title="Appuntamenti Oggi" 
+          value={stats.todayAppointmentsCount} 
+          icon={<Calendar size={24} color="#3b82f6" />} 
+          subtitle={stats.todayStr}
+        />
+        <StatCard 
+          title="Fatturato Reale (Totale)" 
+          value={`€${stats.totalRevenue.toFixed(2)}`} 
+          icon={<DollarSign size={24} color="#10b981" />} 
+          subtitle={`POS: €${stats.cardRevenue.toFixed(2)} | Contanti: €${stats.cashRevenue.toFixed(2)}`}
+        />
+        <StatCard 
+          title="Clienti in DB" 
+          value={stats.totalCustomers} 
+          icon={<Users size={24} color="#f59e0b" />} 
+          subtitle="Totale registrati"
+        />
+        <StatCard 
+          title="Tasso di Ritorno" 
+          value={stats.retention.reduce((acc, c) => acc + c.value, 0) > 0 ? `${Math.round((stats.retention[1].value / stats.retention.reduce((acc, c) => acc + c.value, 0)) * 100)}%` : '0%'} 
+          icon={<Activity size={24} color="#ec4899" />} 
+          subtitle="Clienti fidelizzati" 
+        />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>

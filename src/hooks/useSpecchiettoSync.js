@@ -19,8 +19,10 @@ export const useSpecchiettoSync = () => {
   const [customers, setCustomers] = useState([]);
   const [settings, setSettings] = useState({});
   const [coupons, setCoupons] = useState([]);
-  const [waitlist, setWaitlist] = useState([]);
+  const [surveys, setSurveys] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [checkoutAppointmentState, setCheckoutAppointmentState] = useState(null);
 
   const authHeaders = useCallback(() => (
     token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -128,6 +130,29 @@ export const useSpecchiettoSync = () => {
     if (res.ok) setCoupons(await res.json());
   }, [restaurantId]);
 
+  const refreshTransactions = useCallback(async () => {
+    if (!restaurantId || !token) return;
+    try {
+      const res = await fetch(`${backendUrl}/api/transactions?restaurant_id=${restaurantId}`, { headers: authHeaders() });
+      if (res.ok) setTransactions(await res.json());
+    } catch(e) {}
+  }, [restaurantId, token, authHeaders]);
+  
+  const checkoutAppointment = useCallback(async (appointmentId, totalAmount, paymentMethod, items, discountCode) => {
+    try {
+      const res = await fetch(`${backendUrl}/api/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ restaurant_id: restaurantId, appointment_id: appointmentId, total_amount: totalAmount, payment_method: paymentMethod, items, discount_code: discountCode })
+      });
+      if (res.ok) {
+        await refreshTransactions();
+        await refreshAppointments();
+        await refreshCustomers(); // to update loyalty points
+      }
+    } catch(e) {}
+  }, [restaurantId, authHeaders, refreshTransactions, refreshAppointments, refreshCustomers]);
+  
   const refreshReviews = useCallback(async () => {
     if (!restaurantId || !token) return;
     try {
@@ -441,8 +466,15 @@ export const useSpecchiettoSync = () => {
     refreshWaitlist,
     reviews,
     refreshReviews,
+    refreshTransactions,
     replyReview,
+    transactions,
+    checkoutAppointment,
+    checkoutAppointmentState,
+    onOpenCheckout: setCheckoutAppointmentState,
     createWaitlist,
+    login,
+    logout,
     updateWaitlistStatus,
     deleteWaitlist,
     restaurant: currentRestaurant,

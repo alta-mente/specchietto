@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Users, Bell, Plus, Clock } from 'lucide-react';
+import { CheckoutModal } from './CheckoutModal';
 
 // Fresha-style pastel colors for appointment statuses
 const STATUS_META = {
@@ -139,8 +140,11 @@ const AppointmentDetailPanel = ({ appointment, resource, sync, onClose }) => {
           {appointment.status === 'accepted' && (
             <button disabled={busy} onClick={() => runAction('arrived')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#c084fc', color: '#fff', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>Segna arrivato</button>
           )}
-          {appointment.status === 'arrived' && (
-            <button disabled={busy} onClick={() => runAction('completed')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#4ade80', color: '#fff', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>Completa</button>
+          {['arrived', 'completed'].includes(appointment.status) && !sync.transactions?.some(t => t.appointment_id === appointment.id) && (
+            <button onClick={() => { onClose(); sync.onOpenCheckout(appointment); }} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', backgroundColor: '#4ade80', color: '#fff', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>Incassa</button>
+          )}
+          {sync.transactions?.some(t => t.appointment_id === appointment.id) && (
+            <div style={{ flexBasis: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#f0fdf4', color: '#166534', textAlign: 'center', fontWeight: '700', fontSize: '0.9rem' }}>✅ Pagato</div>
           )}
           
           {(appointment.status === 'accepted' || appointment.status === 'pending') && appointment.customer_phone && (
@@ -646,6 +650,14 @@ export const AgendaTab = ({ sync }) => {
           resource={sync.resources.find(r => r.id === selectedAppt.resource_id)}
           sync={sync}
           onClose={() => setSelectedAppt(null)}
+        />
+      )}
+
+      {sync.checkoutAppointmentState && (
+        <CheckoutModal 
+          appointment={sync.checkoutAppointmentState} 
+          sync={sync} 
+          onClose={() => sync.onOpenCheckout(null)} 
         />
       )}
 
