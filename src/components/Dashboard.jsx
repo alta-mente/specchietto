@@ -304,8 +304,8 @@ export const Dashboard = ({ sync, onLogout }) => {
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', height: '100%' }}>
+      <main style={{ flex: 1, overflow: 'auto', padding: '32px 40px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', flex: 1, width: '100%' }}>
           {activeTab === 'overview' && <OverviewTab sync={sync} />}
           {activeTab === 'agenda' && <AgendaTab sync={sync} />}
           {activeTab === 'clients' && <ClientsTab sync={sync} />}
@@ -316,6 +316,11 @@ export const Dashboard = ({ sync, onLogout }) => {
           {activeTab === 'settings' && <SettingsTab sync={sync} />}
           {activeTab === 'superadmin' && <SuperAdminTab sync={sync} />}
         </div>
+        
+        {/* FOOTER */}
+        <footer style={{ borderTop: '1px solid #e2e8f0', paddingTop: '24px', marginTop: '64px', color: '#64748b', fontSize: '0.85rem', textAlign: 'center', width: '100%', maxWidth: '1200px', margin: '64px auto 0 auto' }}>
+          &copy; {new Date().getFullYear()} Specchietto by <a href="https://altamente.it" target="_blank" rel="noopener noreferrer" style={{ color: '#FF5C82', textDecoration: 'none', fontWeight: '600' }}>Altamente</a>. Tutti i diritti riservati.
+        </footer>
       </main>
       
       {toast && (
