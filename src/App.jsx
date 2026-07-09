@@ -24,7 +24,10 @@ const getView = () => {
 };
 
 function App() {
-  const { view, businessSlug } = getView();
+  // L'app nativa (Android/iOS via Capacitor) è uso esclusivo dello staff del salone:
+  // niente landing page marketing né flussi cliente (prenotazione/recensione), che restano
+  // solo sul sito web. All'avvio va sempre alla vista gestionale (login o dashboard se già loggati).
+  const { view, businessSlug } = Capacitor.isNativePlatform() ? { view: 'admin' } : getView();
 
   if (view === 'booking') {
     return (
