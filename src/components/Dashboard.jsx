@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
+import { getBackendUrl } from '../services/backendUrl';
 import { ResourcesTab } from './ResourcesTab';
 import { ServicesTab } from './ServicesTab';
 import { AgendaTab } from './AgendaTab';
@@ -70,7 +72,17 @@ const TenantSwitcher = ({ sync }) => {
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
+        
+      {toast && (
+        <div className="animate-fade-up" style={{
+          position: 'fixed', bottom: '24px', right: '24px', backgroundColor: '#10b981', color: '#fff',
+          padding: '16px 24px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(16, 185, 129, 0.4)',
+          display: 'flex', alignItems: 'center', gap: '12px', zIndex: 9999, fontWeight: '600'
+        }}>
+          <span>🔔</span> {toast}
         </div>
+      )}
+    </div>
       )}
 
       <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>Oppure crea una nuova attività:</p>
@@ -99,9 +111,30 @@ const TenantSwitcher = ({ sync }) => {
 };
 
 export const Dashboard = ({ sync, onLogout }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(sync.user?.role === 'staff' ? 'agenda' : 'overview');
   const isSuperAdmin = sync.user?.role === 'super_admin';
   const needsTenantSelection = isSuperAdmin && !sync.restaurantId;
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!sync.restaurantId) return;
+    const socket = io(getBackendUrl());
+    
+    socket.on('connect', () => {
+      socket.emit('joinRestaurant', sync.restaurantId);
+    });
+
+    socket.on('appointmentCreated', (appointment) => {
+      if (sync.user?.role === 'staff' && sync.user.resource_id && appointment.resource_id !== sync.user.resource_id) return;
+      
+      setToast(`Nuovo appuntamento da ${appointment.customer_name} (${appointment.service_name})`);
+      if (sync.refreshAppointments) sync.refreshAppointments();
+      
+      setTimeout(() => setToast(null), 5000);
+    });
+
+    return () => socket.disconnect();
+  }, [sync.restaurantId, sync.user]);
 
   if (needsTenantSelection) {
     return (
@@ -158,7 +191,7 @@ export const Dashboard = ({ sync, onLogout }) => {
 
         {/* Navigation Links */}
         <nav style={{ flex: 1, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
-          {TABS.map(tab => {
+          {(sync.user?.role === 'staff' ? TABS.filter(t => t.id === 'agenda') : TABS).map(tab => {
             const isLocked = tab.id === 'marketing' && sync.restaurant?.plan === 'starter';
             return (
               <button

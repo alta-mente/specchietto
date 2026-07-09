@@ -326,6 +326,8 @@ const initDb = async () => {
 
     // 11. Create services table (servizi con durata, sostituisce il menu piatti)
     await dbRun(`
+      try { await dbRun("ALTER TABLE resources ADD COLUMN user_id TEXT"); } catch(e) {}
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS services (
         id TEXT PRIMARY KEY,
         restaurant_id TEXT,
@@ -2428,6 +2430,35 @@ app.delete('/api/resources/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const existing = await dbGet('SELECT * FROM resources WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'Risorsa non trovata' });
+
+// Crea credenziali di accesso per un dipendente (staff)
+app.post('/api/resources/:id/user', requireAuth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email e password richiesti' });
+    
+    const resource = await dbGet('SELECT * FROM resources WHERE id = ?', [req.params.id]);
+    if (!resource) return res.status(404).json({ error: 'Risorsa non trovata' });
+
+    const existingUser = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
+    if (existingUser) return res.status(400).json({ error: 'Email già in uso da un altro account' });
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    const userId = 'usr-' + Math.random().toString(36).substr(2, 9);
+    
+    await dbRun(
+      'INSERT INTO users (id, restaurant_id, email, password_hash, salt, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [userId, resource.restaurant_id, email, hash, salt, 'staff', Date.now()]
+    );
+    
+    await dbRun('UPDATE resources SET user_id = ? WHERE id = ?', [userId, resource.id]);
+    
+    res.json({ success: true, message: 'Accesso creato con successo' });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
     if (!checkScope(req, res, existing.restaurant_id)) return;
     await dbRun('DELETE FROM resources WHERE id = ?', [id]);
     await dbRun('DELETE FROM resource_services WHERE resource_id = ?', [id]);
