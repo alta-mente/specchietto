@@ -22,6 +22,7 @@ export const useSpecchiettoSync = () => {
   const [surveys, setSurveys] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [waitlist, setWaitlist] = useState([]);
   const [checkoutAppointmentState, setCheckoutAppointmentState] = useState(null);
 
   const authHeaders = useCallback(() => (
