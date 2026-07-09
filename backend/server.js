@@ -397,6 +397,15 @@ const initDb = async () => {
       )
     `);
 
+    // Migrations for appointments table
+    try {
+      await dbRun(`ALTER TABLE appointments ADD COLUMN reminder_sent INTEGER DEFAULT 0`);
+    } catch (e) { /* column exists */ }
+    
+    try {
+      await dbRun(`ALTER TABLE appointments ADD COLUMN review_sent INTEGER DEFAULT 0`);
+    } catch (e) { /* column exists */ }
+
     await dbRun(`
       CREATE TABLE IF NOT EXISTS waitlist (
         id TEXT PRIMARY KEY,
@@ -1096,6 +1105,143 @@ Lo staff di ${restaurantName}`;
 
 // TODO: non ancora richiamata da nessuna route — va agganciata alla creazione di un
 // nuovo appuntamento, quando definiremo il modello resources/services/appointments.
+// --- APPOINTMENT EMAIL HELPERS ---
+
+const sendCustomerConfirmationEmail = async (appointment, restaurant) => {
+  if (!appointment.customer_email || !appointment.customer_email.includes('@')) return;
+
+  const subject = `Conferma Appuntamento: ${restaurant.name}`;
+  const bodyText = `Ciao ${appointment.customer_name},\nIl tuo appuntamento per ${appointment.service_name} è confermato per il ${appointment.date} alle ${appointment.time}.`;
+
+  const contentHtml = `
+    <p>Ciao <strong>${appointment.customer_name}</strong>,</p>
+    <p>Siamo felici di confermare il tuo appuntamento presso <strong>${restaurant.name}</strong>.</p>
+    <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e2e8f0; text-align: left;">
+      <h3 style="margin-top: 0; color: #0f172a;">Dettagli Appuntamento</h3>
+      <p style="margin: 5px 0;"><strong>Servizio:</strong> ${appointment.service_name}</p>
+      <p style="margin: 5px 0;"><strong>Data:</strong> ${appointment.date}</p>
+      <p style="margin: 5px 0;"><strong>Ora:</strong> ${appointment.time}</p>
+    </div>
+    <p>Ti aspettiamo!</p>
+  `;
+
+  const htmlBody = buildHtmlEmail(subject, "Appuntamento Confermato", contentHtml, null, null, `Ricevi questa email perché hai prenotato presso ${restaurant.name}.`, restaurant);
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Email Simulata] Conferma appuntamento a ${appointment.customer_email}`);
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    await emailTransporter.sendMail({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+    console.log(`✉️ Conferma inviata a: ${appointment.customer_email}`);
+  } catch (err) {
+    console.error('❌ Errore invio conferma:', err);
+  }
+};
+
+const sendSalonNotificationEmail = async (appointment, restaurant, adminEmail) => {
+  if (!adminEmail || !adminEmail.includes('@')) return;
+
+  const subject = `Nuova Prenotazione: ${appointment.customer_name}`;
+  const bodyText = `Hai ricevuto una nuova prenotazione da ${appointment.customer_name} per ${appointment.service_name} il ${appointment.date} alle ${appointment.time}.`;
+
+  const contentHtml = `
+    <p>Hai ricevuto un nuovo appuntamento dal widget online o da Google Maps!</p>
+    <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e2e8f0; text-align: left;">
+      <p style="margin: 5px 0;"><strong>Cliente:</strong> ${appointment.customer_name}</p>
+      <p style="margin: 5px 0;"><strong>Telefono:</strong> ${appointment.customer_phone || 'Non specificato'}</p>
+      <p style="margin: 5px 0;"><strong>Email:</strong> ${appointment.customer_email || 'Non specificata'}</p>
+      <p style="margin: 5px 0;"><strong>Servizio:</strong> ${appointment.service_name}</p>
+      <p style="margin: 5px 0;"><strong>Data e Ora:</strong> ${appointment.date} alle ${appointment.time}</p>
+      <p style="margin: 5px 0;"><strong>Sorgente:</strong> ${appointment.source || 'direct'}</p>
+    </div>
+  `;
+
+  const htmlBody = buildHtmlEmail(subject, "Nuova Prenotazione", contentHtml, "Apri Dashboard", process.env.FRONTEND_URL || "https://specchietto.app", "Specchietto Notifiche", restaurant);
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Email Simulata] Notifica salone a ${adminEmail}`);
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    await emailTransporter.sendMail({ from: `"Specchietto" <${fromEmail}>`, to: adminEmail, subject, text: bodyText, html: htmlBody });
+  } catch (err) {
+    console.error('❌ Errore notifica salone:', err);
+  }
+};
+
+const sendReminderEmail = async (appointment, restaurant) => {
+  if (!appointment.customer_email || !appointment.customer_email.includes('@')) return;
+
+  const subject = `Promemoria: Appuntamento domani da ${restaurant.name}`;
+  const bodyText = `Ciao ${appointment.customer_name}, ti ricordiamo il tuo appuntamento per ${appointment.service_name} domani alle ${appointment.time}.`;
+
+  const contentHtml = `
+    <p>Ciao <strong>${appointment.customer_name}</strong>,</p>
+    <p>Questo è un promemoria per il tuo appuntamento di domani presso <strong>${restaurant.name}</strong>.</p>
+    <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #e2e8f0; text-align: left;">
+      <p style="margin: 5px 0;"><strong>Servizio:</strong> ${appointment.service_name}</p>
+      <p style="margin: 5px 0;"><strong>Ora:</strong> ${appointment.time}</p>
+    </div>
+    <p>A domani!</p>
+  `;
+
+  const htmlBody = buildHtmlEmail(subject, "Promemoria Appuntamento", contentHtml, null, null, `Promemoria da ${restaurant.name}.`, restaurant);
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Email Simulata] Promemoria a ${appointment.customer_email}`);
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    await emailTransporter.sendMail({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+  } catch (err) {
+    console.error('❌ Errore promemoria:', err);
+  }
+};
+
+const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
+  if (!appointment.customer_email || !appointment.customer_email.includes('@')) return;
+
+  const subject = `Com'è andata da ${restaurant.name}?`;
+  const bodyText = `Ciao ${appointment.customer_name}, speriamo tu sia rimasto soddisfatto del servizio ${appointment.service_name}. Lasciaci una recensione!`;
+
+  const reviewBtn = googleReviewLink ? 
+    `<div style="margin-top: 20px;"><a href="${googleReviewLink}" style="background-color: ${restaurant.primary_color || '#0f172a'}; padding: 12px 24px; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Lascia una recensione su Google</a></div>` 
+    : '';
+
+  const contentHtml = `
+    <p>Ciao <strong>${appointment.customer_name}</strong>,</p>
+    <p>grazie per averci scelto per il tuo ${appointment.service_name}!</p>
+    <p>Ci piacerebbe sapere com'è andata. Il tuo parere è preziosissimo per noi e per gli altri clienti.</p>
+    ${reviewBtn}
+    <p style="margin-top: 30px;">A presto,<br>Lo staff di ${restaurant.name}</p>
+  `;
+
+  const htmlBody = buildHtmlEmail(subject, "La tua opinione conta", contentHtml, null, null, `Richiesta recensione da ${restaurant.name}.`, restaurant);
+
+  if (!emailTransporter) {
+    console.log(`✉️ [Email Simulata] Richiesta recensione a ${appointment.customer_email}`);
+    return;
+  }
+
+  try {
+    let fromEmail = 'noreply@specchietto.app';
+    if (SMTP_FROM) { const match = SMTP_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
+    await emailTransporter.sendMail({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+  } catch (err) {
+    console.error('❌ Errore richiesta recensione:', err);
+  }
+};
+
 // Helper to send push notifications to all registered devices of a specific restaurant
 const sendPushNotificationToAll = async (order) => {
   if (!firebaseInitialized) {
@@ -2741,6 +2887,25 @@ app.post('/api/appointments', async (req, res) => {
 
     const created = await dbGet('SELECT * FROM appointments WHERE id = ?', [id]);
     io.to(restaurant_id).emit('appointmentCreated', created);
+    
+    // --- SEND EMAILS ---
+    try {
+      const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
+      if (restaurant) {
+        // To Customer
+        if (created.customer_email) {
+          sendCustomerConfirmationEmail(created, restaurant);
+        }
+        // To Salon Admin
+        const admin = await dbGet('SELECT email FROM users WHERE restaurant_id = ? AND role = "admin"', [restaurant_id]);
+        if (admin && admin.email) {
+          sendSalonNotificationEmail(created, restaurant, admin.email);
+        }
+      }
+    } catch (e) {
+      console.error("Errore invio email post-creazione appuntamento:", e);
+    }
+
     res.json(created);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2884,52 +3049,55 @@ app.delete('/api/waitlist/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Background Worker to automatically send follow-up public review requests to happy customers
-const checkAndSendFollowUpReviews = async () => {
+// Background Worker for 24h Reminders
+const checkAndSendReminders = async () => {
   try {
-    const now = Date.now();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowIso = tomorrow.toISOString().split('T')[0];
     
-    // Fetch surveys that haven't had follow-up review email sent yet
-    const surveys = await dbAll(`
-      SELECT * FROM surveys 
-      WHERE review_email_sent = 0
-    `);
+    const appointments = await dbAll(`SELECT * FROM appointments WHERE date = ? AND (status = 'pending' OR status = 'accepted') AND reminder_sent = 0`, [tomorrowIso]);
 
-    for (const s of surveys) {
-      const restId = s.restaurant_id || 'rest-1';
-      
-      // Load settings for this restaurant
-      const delaySetting = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'review_funnel_delay'", [restId]);
-      const minRatingSetting = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'review_funnel_min_rating'", [restId]);
-      
-      const delayHours = delaySetting ? parseFloat(delaySetting.value) : 4; // Defaults to 4 hours if not set
-      const minRating = minRatingSetting ? parseFloat(minRatingSetting.value) : 4.0; // Defaults to 4.0
-
-      // If rating is below the merchant's configured threshold, mark as review_email_sent = 1 and skip
-      if (s.average_rating < minRating) {
-        await dbRun("UPDATE surveys SET review_email_sent = 1 WHERE id = ?", [s.id]);
-        continue;
-      }
-
-      // Convert hours to ms. If delayHours is 0, we can use 4 hours as default.
-      // If it is non-zero, we use it directly (e.g. 0.01 hours is 36 seconds, very good for testing).
-      const finalDelayHours = delayHours <= 0 ? 4 : delayHours;
-      const delayMs = finalDelayHours * 60 * 60 * 1000;
-      
-      if (now - s.created_at >= delayMs) {
-        console.log(`[Review Funnel] Sending follow-up review email for survey: ${s.id} (Delay: ${finalDelayHours}h, elapsed: ${((now - s.created_at) / 3600000).toFixed(2)}h)`);
-        await sendFollowUpReviewEmail(s);
-        await dbRun("UPDATE surveys SET review_email_sent = 1 WHERE id = ?", [s.id]);
+    for (const apt of appointments) {
+      const restaurant = await dbGet("SELECT * FROM restaurants WHERE id = ?", [apt.restaurant_id]);
+      if (restaurant) {
+        console.log(`[Reminders] Sending 24h reminder to ${apt.customer_email} for apt ${apt.id}`);
+        await sendReminderEmail(apt, restaurant);
+        await dbRun("UPDATE appointments SET reminder_sent = 1 WHERE id = ?", [apt.id]);
       }
     }
   } catch (err) {
-    console.error("Errore nel worker checkAndSendFollowUpReviews:", err);
+    console.error("Errore nel worker checkAndSendReminders:", err);
   }
 };
 
-// Start checking every 60 seconds
-setInterval(checkAndSendFollowUpReviews, 60000);
-checkAndSendFollowUpReviews();
+// Background Worker for Review Requests (After Appointment Completion)
+const checkAndSendReviews = async () => {
+  try {
+    const appointments = await dbAll(`SELECT * FROM appointments WHERE status = 'completed' AND survey_sent = 0`);
+
+    for (const apt of appointments) {
+      const restaurant = await dbGet("SELECT * FROM restaurants WHERE id = ?", [apt.restaurant_id]);
+      if (restaurant) {
+        // Find Google Maps Link
+        const setting = await dbGet("SELECT value FROM settings WHERE restaurant_id = ? AND key = 'google_review_link'", [apt.restaurant_id]);
+        const googleLink = setting ? setting.value : null;
+
+        console.log(`[Reviews] Sending review request to ${apt.customer_email} for apt ${apt.id}`);
+        await sendReviewEmail(apt, restaurant, googleLink);
+        await dbRun("UPDATE appointments SET survey_sent = 1 WHERE id = ?", [apt.id]);
+      }
+    }
+  } catch (err) {
+    console.error("Errore nel worker checkAndSendReviews:", err);
+  }
+};
+
+// Start checking every 15 minutes (900000 ms)
+setInterval(checkAndSendReminders, 900000);
+setInterval(checkAndSendReviews, 900000);
+checkAndSendReminders();
+checkAndSendReviews();
 
 // Start the server
 server.listen(PORT, () => {
