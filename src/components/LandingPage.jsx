@@ -122,9 +122,7 @@ export const LandingPage = ({ onOpenLogin }) => {
         position: 'sticky', top: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '16px 4%', backgroundColor: 'rgba(10, 10, 16, 0.75)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.05)'
       }}>
-        <strong style={{ fontSize: '1.4rem', fontWeight: '900', letterSpacing: '-0.5px' }}>
-          Specchietto<span style={{ color: 'var(--accent)' }}>.</span>
-        </strong>
+        <img src="/specchietto-logo-bianco.svg" alt="Specchietto" style={{ height: '36px', width: 'auto' }} />
         <nav style={{ display: 'flex', alignItems: 'center', gap: '32px' }} className="landing-nav-desktop">
           <a href="#funzionalita" style={{ color: '#cbd5e1', textDecoration: 'none', fontWeight: '500', transition: 'color 0.2s' }} onMouseEnter={e=>e.target.style.color='#fff'} onMouseLeave={e=>e.target.style.color='#cbd5e1'}>Funzionalità</a>
           <a href="#piani" style={{ color: '#cbd5e1', textDecoration: 'none', fontWeight: '500', transition: 'color 0.2s' }} onMouseEnter={e=>e.target.style.color='#fff'} onMouseLeave={e=>e.target.style.color='#cbd5e1'}>Piani</a>
@@ -403,7 +401,7 @@ export const LandingPage = ({ onOpenLogin }) => {
       <footer style={{ borderTop: '1px solid var(--glass-border)', padding: '64px 4% 32px', color: '#64748b' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '64px', maxWidth: '1100px', margin: '0 auto', marginBottom: '64px' }}>
           <div style={{ flex: '2 1 300px' }}>
-            <strong style={{ color: '#fff', fontSize: '1.4rem', display: 'block', marginBottom: '16px' }}>Specchietto.</strong>
+            <img src="/specchietto-logo-bianco.svg" alt="Specchietto" style={{ height: '40px', width: 'auto', marginBottom: '16px' }} />
             <p style={{ lineHeight: '1.6', maxWidth: '300px' }}>Il software gestionale intelligente dedicato esclusivamente a Parrucchieri, Centri Estetici e Barber Shop.</p>
           </div>
           <div style={{ flex: '1 1 150px' }}>

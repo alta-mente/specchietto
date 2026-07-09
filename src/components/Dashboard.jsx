@@ -163,10 +163,7 @@ export const Dashboard = ({ sync, onLogout }) => {
       }}>
         {/* Brand / Logo Area */}
         <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-            S
-          </div>
-          <strong style={{ fontSize: '1.25rem', letterSpacing: '-0.5px' }}>Specchietto</strong>
+          <img src="/specchietto-logo-nero.svg" alt="Specchietto" style={{ height: '32px', width: 'auto' }} />
         </div>
 
         {/* Salon Selector (if super admin) or Name */}

@@ -579,6 +579,16 @@ export const BookingPage = ({ businessSlug }) => {
           </div>
         )}
       </div>
+      
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '32px 16px', opacity: 0.8, marginTop: 'auto' }}>
+        <a href="https://altamente.it" target="_blank" rel="noopener noreferrer" style={{ color: '#fff', textDecoration: 'none', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <span style={{ color: '#94a3b8' }}>Gestito da</span>
+          <img src="/specchietto-logo-bianco.svg" alt="Specchietto" style={{ height: '20px', width: 'auto' }} />
+          <span style={{ color: '#94a3b8', margin: '0 4px' }}>|</span>
+          <span style={{ fontWeight: '600' }}>altamente.it</span>
+        </a>
+      </div>
     </div>
   );
 };
