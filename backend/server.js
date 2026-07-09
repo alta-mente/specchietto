@@ -2846,7 +2846,7 @@ app.post('/api/appointments', async (req, res) => {
     const id = 'apt-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
       `INSERT INTO appointments (id, restaurant_id, resource_id, service_id, service_name, duration_minutes, price, customer_name, customer_phone, customer_email, date, time, notes, status, source, has_guarantee, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?)`,
       [id, restaurant_id, resource_id, service_id, finalName, finalDuration, finalPrice, customer_name, customer_phone || '', customer_email || '', date, time, notes || '', source || 'direct', has_guarantee ? 1 : 0, Date.now()]
     );
 
