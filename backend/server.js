@@ -167,6 +167,7 @@ const initDb = async () => {
         loyalty_reward_threshold INTEGER DEFAULT 500,
         loyalty_reward_value REAL DEFAULT 10.0,
         active INTEGER DEFAULT 1,
+        plan TEXT DEFAULT 'starter',
         created_at INTEGER
       )
     `);
@@ -1723,6 +1724,42 @@ app.get('/api/restaurants/:idOrSlug', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// SUPER ADMIN ROUTES
+app.get('/api/super-admin/restaurants', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accesso negato.' });
+    
+    // Ritorna la lista dei saloni con info utili (numero clienti, numero appuntamenti, etc)
+    const restaurants = await dbAll(`
+      SELECT r.id, r.name, r.slug, r.active, r.plan, r.created_at, u.email as admin_email
+      FROM restaurants r
+      LEFT JOIN users u ON u.restaurant_id = r.id AND u.role = 'admin'
+      ORDER BY r.created_at DESC
+    `);
+    res.json(restaurants);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/super-admin/restaurants/:id/plan', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accesso negato.' });
+    const { id } = req.params;
+    const { plan } = req.body;
+    
+    if (!['starter', 'pro', 'premium'].includes(plan)) {
+      return res.status(400).json({ error: 'Piano non valido' });
+    }
+    
+    await dbRun('UPDATE restaurants SET plan = ? WHERE id = ?', [plan, id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // POST create new restaurant (SaaS Super Admin)
 app.post('/api/restaurants', requireAuth, async (req, res) => {

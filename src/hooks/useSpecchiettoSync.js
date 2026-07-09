@@ -353,6 +353,30 @@ export const useSpecchiettoSync = () => {
     return res.ok;
   }, [restaurantId, authHeaders, refreshSettings]);
 
+  const fetchSuperAdminRestaurants = useCallback(async () => {
+    if (!token || user?.role !== 'super_admin') return [];
+    try {
+      const res = await fetch(`${backendUrl}/api/super-admin/restaurants`, { headers: authHeaders() });
+      if (res.ok) return await res.json();
+    } catch {}
+    return [];
+  }, [token, user, authHeaders]);
+
+  const updateRestaurantPlan = useCallback(async (id, plan) => {
+    if (!token || user?.role !== 'super_admin') return false;
+    try {
+      const res = await fetch(`${backendUrl}/api/super-admin/restaurants/${id}/plan`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ plan })
+      });
+      return res.ok;
+    } catch {}
+    return false;
+  }, [token, user, authHeaders]);
+
+  const currentRestaurant = useMemo(() => restaurants.find(r => r.id === restaurantId), [restaurants, restaurantId]);
+
   return {
     backendUrl,
     token,
@@ -397,6 +421,9 @@ export const useSpecchiettoSync = () => {
     refreshWaitlist,
     createWaitlist,
     updateWaitlistStatus,
-    deleteWaitlist
+    deleteWaitlist,
+    restaurant: currentRestaurant,
+    fetchSuperAdminRestaurants,
+    updateRestaurantPlan
   };
 };

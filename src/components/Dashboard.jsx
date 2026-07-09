@@ -6,7 +6,8 @@ import { ClientsTab } from './ClientsTab';
 import { OverviewTab } from './OverviewTab';
 import { SettingsTab } from './SettingsTab';
 import { MarketingTab } from './MarketingTab';
-import { LayoutDashboard, Calendar, Users, Scissors, Settings, Megaphone, LogOut, Briefcase, ChevronDown, ExternalLink } from 'lucide-react';
+import { SuperAdminTab } from './SuperAdminTab';
+import { LayoutDashboard, Calendar, Users, Scissors, Settings, Megaphone, LogOut, Briefcase, ChevronDown, ExternalLink, ShieldAlert, Lock } from 'lucide-react';
 
 const TABS = [
   { id: 'overview', label: 'Panoramica', icon: <LayoutDashboard size={20} /> },
@@ -157,42 +158,75 @@ export const Dashboard = ({ sync, onLogout }) => {
 
         {/* Navigation Links */}
         <nav style={{ flex: 1, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto' }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                fontWeight: activeTab === tab.id ? '600' : '500',
-                backgroundColor: activeTab === tab.id ? 'rgba(255, 92, 130, 0.15)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--accent)' : '#475569',
-                transition: 'all 0.2s',
-                textAlign: 'left'
-              }}
-              onMouseEnter={e => {
-                if (activeTab !== tab.id) {
-                  e.currentTarget.style.color = '#0f172a';
-                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (activeTab !== tab.id) {
-                  e.currentTarget.style.color = '#94a3b8';
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+          {TABS.map(tab => {
+            const isLocked = tab.id === 'marketing' && sync.restaurant?.plan === 'starter';
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (isLocked) {
+                    alert('Premium Feature: Passa al piano PRO o PREMIUM per sbloccare le funzioni Marketing, Loyalty e Pagamenti Stripe!');
+                    return;
+                  }
+                  setActiveTab(tab.id);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: isLocked ? 'not-allowed' : 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: activeTab === tab.id ? '600' : '500',
+                  backgroundColor: activeTab === tab.id ? 'rgba(255, 92, 130, 0.15)' : 'transparent',
+                  color: isLocked ? '#cbd5e1' : (activeTab === tab.id ? 'var(--accent)' : '#475569'),
+                  transition: 'all 0.2s',
+                  textAlign: 'left'
+                }}
+                onMouseEnter={e => {
+                  if (activeTab !== tab.id && !isLocked) {
+                    e.currentTarget.style.color = '#0f172a';
+                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (activeTab !== tab.id && !isLocked) {
+                    e.currentTarget.style.color = '#94a3b8';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {tab.icon}
+                  {tab.label}
+                </div>
+                {isLocked && <Lock size={16} color="#cbd5e1" />}
+              </button>
+            );
+          })}
+          
+          {sync.user?.role === 'super_admin' && (
+            <>
+              <div style={{ margin: '24px 0 8px 16px', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Admin
+              </div>
+              <button
+                onClick={() => setActiveTab('superadmin')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.95rem',
+                  fontWeight: activeTab === 'superadmin' ? '600' : '500',
+                  backgroundColor: activeTab === 'superadmin' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                  color: activeTab === 'superadmin' ? '#6366f1' : '#475569',
+                  transition: 'all 0.2s', textAlign: 'left'
+                }}
+              >
+                <ShieldAlert size={20} />
+                Gestione SaaS
+              </button>
+            </>
+          )}
 
           <div style={{ margin: '24px 0 8px 16px', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Strumenti
@@ -255,8 +289,9 @@ export const Dashboard = ({ sync, onLogout }) => {
           {activeTab === 'clients' && <ClientsTab sync={sync} />}
           {activeTab === 'resources' && <ResourcesTab sync={sync} />}
           {activeTab === 'services' && <ServicesTab sync={sync} />}
-          {activeTab === 'marketing' && <MarketingTab sync={sync} />}
+          {activeTab === 'marketing' && sync.restaurant?.plan !== 'starter' && <MarketingTab sync={sync} />}
           {activeTab === 'settings' && <SettingsTab sync={sync} />}
+          {activeTab === 'superadmin' && <SuperAdminTab sync={sync} />}
         </div>
       </main>
       
