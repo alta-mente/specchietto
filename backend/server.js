@@ -476,10 +476,10 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
         user: SMTP_USER,
         pass: SMTP_PASS
       },
-      connectionTimeout: 5000, // 5 secondi
-      greetingTimeout: 5000,    // 5 secondi
-      socketTimeout: 10000,     // 10 secondi
-      dnsTimeout: 5000          // 5 secondi
+      connectionTimeout: 15000, // 15 secondi
+      greetingTimeout: 15000,    // 15 secondi
+      socketTimeout: 15000,     // 15 secondi
+      dnsTimeout: 15000          // 15 secondi
     });
     console.log(`✉️ Servizio email configurato con successo (Host: ${SMTP_HOST}).`);
   } catch (err) {
