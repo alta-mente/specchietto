@@ -325,8 +325,8 @@ const initDb = async () => {
     `);
 
     // 11. Create services table (servizi con durata, sostituisce il menu piatti)
-    await dbRun(`
-      try { await dbRun("ALTER TABLE resources ADD COLUMN user_id TEXT"); } catch(e) {}
+    try { await dbRun("ALTER TABLE resources ADD COLUMN user_id TEXT"); } catch(e) {}
+
     await dbRun(`
       CREATE TABLE IF NOT EXISTS services (
         id TEXT PRIMARY KEY,
