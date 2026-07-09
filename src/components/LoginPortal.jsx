@@ -83,7 +83,7 @@ export const LoginPortal = ({ onLogin = () => {}, restaurantInfo = null, onBack 
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      minHeight: '100%',
+      minHeight: '100vh',
       width: '100%',
       background: 'radial-gradient(circle at 20% 20%, #23233a 0%, #14141c 55%, #0b0b10 100%)',
       fontFamily: "'DM Sans', sans-serif",
