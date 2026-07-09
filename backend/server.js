@@ -1223,17 +1223,23 @@ const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
   if (!appointment.customer_email || !appointment.customer_email.includes('@')) return;
 
   const subject = `Com'è andata da ${restaurant.name}?`;
-  const bodyText = `Ciao ${appointment.customer_name}, speriamo tu sia rimasto soddisfatto del servizio ${appointment.service_name}. Lasciaci una recensione!`;
+  const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app'; // Default vercel app if env not set
+  const internalReviewUrl = `${frontendUrl}/#/leave-review/${appointment.id}`;
+
+  const bodyText = `Ciao ${appointment.customer_name}, speriamo tu sia rimasto soddisfatto del servizio ${appointment.service_name}. Lasciaci una recensione cliccando su questo link: ${internalReviewUrl} ${googleReviewLink ? 'oppure su Google: ' + googleReviewLink : ''}`;
 
   const reviewBtn = googleReviewLink ? 
     `<div style="margin-top: 20px;"><a href="${googleReviewLink}" style="background-color: ${restaurant.primary_color || '#0f172a'}; padding: 12px 24px; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Lascia una recensione su Google</a></div>` 
     : '';
+
+  const internalBtn = `<div style="margin-top: ${googleReviewLink ? '10px' : '20px'};"><a href="${internalReviewUrl}" style="background-color: ${googleReviewLink ? '#f1f5f9' : (restaurant.primary_color || '#0f172a')}; padding: 12px 24px; color: ${googleReviewLink ? '#334155' : '#fff'}; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; border: 1px solid ${googleReviewLink ? '#e2e8f0' : 'transparent'};">Condividi la tua esperienza con noi</a></div>`;
 
   const contentHtml = `
     <p>Ciao <strong>${appointment.customer_name}</strong>,</p>
     <p>grazie per averci scelto per il tuo ${appointment.service_name}!</p>
     <p>Ci piacerebbe sapere com'è andata. Il tuo parere è preziosissimo per noi e per gli altri clienti.</p>
     ${reviewBtn}
+    ${internalBtn}
     <p style="margin-top: 30px;">A presto,<br>Lo staff di ${restaurant.name}</p>
   `;
 
@@ -3048,17 +3054,16 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
 
     // Aggiungi punti fedeltà se l'appuntamento è completato
     if (status === 'completed' && existing.status !== 'completed' && existing.customer_phone && existing.price) {
-      // Invio email recensione (usiamo sendEmailNotification che usa resend)
+      // Usa direttamente il nostro sistema di invio
       if (existing.customer_email && existing.survey_sent === 0) {
         try {
-          const { frontendUrl } = require('../src/services/backendUrl'); // this won't work in backend easily
-          const reviewUrl = 'https://specchietto-booking.vercel.app/leave-review/' + existing.id; // Fallback
-          const html = `<p>Ciao ${existing.customer_name},</p><p>Speriamo che il tuo appuntamento presso <b>${restaurant.name}</b> sia andato alla grande!</p><p>Ti andrebbe di lasciarci una recensione? Ci vorranno solo 10 secondi.</p><p><a href="https://specchietto-booking.vercel.app/leave-review/${existing.id}" style="display:inline-block;padding:12px 24px;background:#FF5C82;color:#fff;text-decoration:none;border-radius:8px;">Lascia una Recensione</a></p>`;
-          await sendEmailNotification(existing.customer_email, 'Come ti sei trovato?', html);
+          // Fallback a sendReviewEmail
+          const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
+          const googleLink = restaurant?.google_review_link || null;
+          await sendReviewEmail(existing, restaurant, googleLink);
           await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [existing.id]);
-          console.log('inviata email recensione a', existing.customer_email);
         } catch (e) {
-          console.error('Errore invio email recensione:', e);
+          console.error('Errore invio email recensione dal checkout:', e);
         }
       }
       
