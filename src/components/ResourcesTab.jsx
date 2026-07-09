@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { storageService } from '../services/storageService';
+import { getBackendUrl } from '../services/backendUrl';
 
 const DAYS = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
@@ -143,12 +145,13 @@ const ResourceAuthModal = ({ resource, onClose }) => {
     e.preventDefault();
     setLoading(true); setError(''); setSuccess('');
     try {
-      const { backendUrl } = require('../services/backendUrl');
+      const backendUrl = getBackendUrl();
+      const token = storageService.getItem('auth_token_admin');
       const res = await fetch(`${backendUrl}/api/resources/${resource.id}/user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${storageService.getToken()}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ email, password })
       });
@@ -189,6 +192,7 @@ const ResourceAuthModal = ({ resource, onClose }) => {
 export const ResourcesTab = ({ sync }) => {
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [authResource, setAuthResource] = useState(null);
 
   const handleCreate = async (e) => {
     e.preventDefault();
