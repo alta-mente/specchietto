@@ -459,7 +459,11 @@ const initDb = async () => {
     try {
       await dbRun(`ALTER TABLE appointments ADD COLUMN reminder_sent INTEGER DEFAULT 0`);
     } catch (e) { /* column exists */ }
-    
+
+    try {
+      await dbRun(`ALTER TABLE appointments ADD COLUMN sms_reminder_sent INTEGER DEFAULT 0`);
+    } catch (e) { /* column exists */ }
+
     try {
       await dbRun(`ALTER TABLE appointments ADD COLUMN review_sent INTEGER DEFAULT 0`);
     } catch (e) { /* column exists */ }
@@ -564,6 +568,30 @@ if (RESEND_API_KEY) {
 } else {
   console.log('ℹ️ RESEND_API_KEY non configurata. Le notifiche email saranno simulate.');
 }
+
+// Configurazione Telnyx per i promemoria via SMS (un solo account a livello di piattaforma,
+// come per le email: il nome del salone compare nel testo del messaggio, non serve che ogni
+// salone colleghi un proprio account).
+const TELNYX_API_KEY = process.env.TELNYX_API_KEY || '';
+const TELNYX_FROM_NUMBER = process.env.TELNYX_FROM_NUMBER || '';
+
+if (TELNYX_API_KEY && TELNYX_FROM_NUMBER) {
+  console.log('📱 Servizio SMS configurato con successo tramite Telnyx.');
+} else {
+  console.log('ℹ️ TELNYX_API_KEY / TELNYX_FROM_NUMBER non configurati. I promemoria SMS saranno simulati.');
+}
+
+// Normalizza un numero di telefono in formato E.164 richiesto da Telnyx.
+// Se il numero non ha già un prefisso internazionale, assume che sia italiano (+39).
+const normalizePhoneE164 = (raw) => {
+  if (!raw) return null;
+  let digits = String(raw).trim().replace(/[^\d+]/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('+')) return digits;
+  if (digits.startsWith('00')) return '+' + digits.slice(2);
+  digits = digits.replace(/^0+/, '');
+  return '+39' + digits;
+};
 
 // Helper to extract dynamic frontend origin from request headers with safe fallbacks
 const getOrigin = (req) => {
@@ -1281,6 +1309,38 @@ const sendReminderEmail = async (appointment, restaurant) => {
     await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
   } catch (err) {
     console.error('❌ Errore promemoria:', err);
+  }
+};
+
+// Promemoria via SMS (Telnyx), stesso trigger 24h del promemoria email ma canale indipendente:
+// ritorna true solo se il messaggio è stato effettivamente inviato, così il chiamante marca
+// sms_reminder_sent = 1 solo sui successi reali (mai su invii simulati o falliti).
+const sendReminderSms = async (appointment, restaurant) => {
+  const phone = normalizePhoneE164(appointment.customer_phone);
+  if (!phone) return false;
+
+  const text = `Ciao ${appointment.customer_name}, ti ricordiamo il tuo appuntamento da ${restaurant.name} domani alle ${appointment.time} per ${appointment.service_name}. A presto!`;
+
+  if (!TELNYX_API_KEY || !TELNYX_FROM_NUMBER) {
+    console.log(`📱 [SMS Simulato] Promemoria a ${phone}: ${text}`);
+    return false;
+  }
+
+  try {
+    const res = await fetch('https://api.telnyx.com/v2/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TELNYX_API_KEY}` },
+      body: JSON.stringify({ from: TELNYX_FROM_NUMBER, to: phone, text })
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      console.error('❌ Errore SMS promemoria:', res.status, JSON.stringify(errBody));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('❌ Errore di rete SMS promemoria:', err);
+    return false;
   }
 };
 
@@ -3715,14 +3775,22 @@ const checkAndSendReminders = async () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowIso = tomorrow.toISOString().split('T')[0];
     
-    const appointments = await dbAll(`SELECT * FROM appointments WHERE date = ? AND (status = 'pending' OR status = 'accepted') AND reminder_sent = 0`, [tomorrowIso]);
+    const appointments = await dbAll(`SELECT * FROM appointments WHERE date = ? AND (status = 'pending' OR status = 'accepted') AND (reminder_sent = 0 OR sms_reminder_sent = 0)`, [tomorrowIso]);
 
     for (const apt of appointments) {
       const restaurant = await dbGet("SELECT * FROM restaurants WHERE id = ?", [apt.restaurant_id]);
-      if (restaurant) {
-        console.log(`[Reminders] Sending 24h reminder to ${apt.customer_email} for apt ${apt.id}`);
+      if (!restaurant) continue;
+
+      if (apt.reminder_sent === 0) {
+        console.log(`[Reminders] Sending 24h email reminder to ${apt.customer_email} for apt ${apt.id}`);
         await sendReminderEmail(apt, restaurant);
         await dbRun("UPDATE appointments SET reminder_sent = 1 WHERE id = ?", [apt.id]);
+      }
+
+      if (apt.sms_reminder_sent === 0) {
+        console.log(`[Reminders] Sending 24h SMS reminder to ${apt.customer_phone} for apt ${apt.id}`);
+        const smsSent = await sendReminderSms(apt, restaurant);
+        if (smsSent) await dbRun("UPDATE appointments SET sms_reminder_sent = 1 WHERE id = ?", [apt.id]);
       }
     }
   } catch (err) {

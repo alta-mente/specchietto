@@ -1,9 +1,57 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Users, TrendingUp } from 'lucide-react';
+import { ShieldAlert, Users, TrendingUp, ChevronDown, CreditCard, MessageSquare, Phone, ExternalLink } from 'lucide-react';
+
+const envVarStyle = {
+  display: 'inline-block', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#f1f5f9',
+  border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '0.85rem', color: '#0f172a'
+};
+
+const GuideStep = ({ children }) => (
+  <li style={{ marginBottom: '8px', color: '#334155', fontSize: '0.9rem', lineHeight: 1.5 }}>{children}</li>
+);
+
+const IntegrationGuide = ({ id, icon, title, subtitle, status, open, onToggle, children }) => (
+  <div className="admin-card" style={{ marginBottom: '12px', overflow: 'hidden' }}>
+    <button
+      onClick={() => onToggle(id)}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+        padding: '18px 20px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {icon}
+        <div>
+          <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '1rem' }}>{title}</div>
+          <div style={{ fontSize: '0.82rem', color: '#64748b' }}>{subtitle}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {status && (
+          <span style={{
+            fontSize: '0.75rem', fontWeight: '600', padding: '4px 10px', borderRadius: '12px',
+            backgroundColor: status === 'attivo' ? '#d1fae5' : status === 'prossimamente' ? '#fef3c7' : '#f1f5f9',
+            color: status === 'attivo' ? '#065f46' : status === 'prossimamente' ? '#92400e' : '#475569'
+          }}>
+            {status === 'attivo' ? 'Attivo' : status === 'prossimamente' ? 'Prossimamente' : status}
+          </span>
+        )}
+        <ChevronDown size={18} color="#94a3b8" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+      </div>
+    </button>
+    {open && (
+      <div style={{ padding: '0 20px 20px 20px', borderTop: '1px solid #f1f5f9' }}>
+        <div style={{ paddingTop: '16px' }}>{children}</div>
+      </div>
+    )}
+  </div>
+);
 
 export const SuperAdminTab = ({ sync }) => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openGuide, setOpenGuide] = useState(null);
+  const toggleGuide = (id) => setOpenGuide(prev => prev === id ? null : id);
 
   useEffect(() => {
     const load = async () => {
@@ -109,6 +157,78 @@ export const SuperAdminTab = ({ sync }) => {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ marginTop: '40px' }}>
+        <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0' }}>Configurazione integrazioni piattaforma</h3>
+        <p style={{ margin: '0 0 16px 0', color: '#475569', fontSize: '0.9rem' }}>
+          Chiavi e account a livello di piattaforma (un'unica configurazione nel <span style={envVarStyle}>.env</span> del backend, valida per tutti i saloni). I singoli saloni non devono ripetere questi passaggi, salvo dove indicato.
+        </p>
+
+        <IntegrationGuide
+          id="stripe"
+          icon={<CreditCard size={22} color="#6366f1" />}
+          title="Pagamenti — Stripe Connect"
+          subtitle="Acconti prenotazione online e link di pagamento dalla cassa"
+          status="attivo"
+          open={openGuide === 'stripe'}
+          onToggle={toggleGuide}
+        >
+          <ol style={{ margin: 0, paddingLeft: '20px' }}>
+            <GuideStep>Crea un account Stripe (piattaforma) su <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer">dashboard.stripe.com/register</a>.</GuideStep>
+            <GuideStep>Attiva <strong>Stripe Connect</strong> (Stripe → Connect → Impostazioni). È gratuito da attivare.</GuideStep>
+            <GuideStep>Vai su Sviluppatori → Webhook → crea un endpoint su <span style={envVarStyle}>https://TUO-BACKEND/api/webhooks/stripe</span>.</GuideStep>
+            <GuideStep>Nella configurazione del webhook attiva <strong>"Ascolta eventi sugli account collegati"</strong> (Connect) — senza questa opzione i pagamenti dei saloni non arriveranno al webhook.</GuideStep>
+            <GuideStep>Seleziona gli eventi <span style={envVarStyle}>checkout.session.completed</span> e <span style={envVarStyle}>account.updated</span>.</GuideStep>
+            <GuideStep>Copia la Secret key in <span style={envVarStyle}>STRIPE_SECRET_KEY</span> e il Signing secret del webhook in <span style={envVarStyle}>STRIPE_WEBHOOK_SECRET</span>.</GuideStep>
+            <GuideStep>Ogni salone collega poi il <strong>proprio</strong> account Stripe da <em>Impostazioni → Pagamenti</em> nel suo pannello: i suoi incassi arrivano direttamente a lui, non alla piattaforma.</GuideStep>
+          </ol>
+        </IntegrationGuide>
+
+        <IntegrationGuide
+          id="telnyx"
+          icon={<MessageSquare size={22} color="#0ea5e9" />}
+          title="SMS — Telnyx"
+          subtitle="Promemoria automatico 24h prima dell'appuntamento"
+          status="attivo"
+          open={openGuide === 'telnyx'}
+          onToggle={toggleGuide}
+        >
+          <ol style={{ margin: 0, paddingLeft: '20px' }}>
+            <GuideStep>Crea un account su <a href="https://telnyx.com/sign-up" target="_blank" rel="noopener noreferrer">telnyx.com/sign-up</a> e aggiungi un metodo di pagamento (serve credito per inviare SMS).</GuideStep>
+            <GuideStep>Vai su Numbers → Search & Buy e acquista un numero italiano con SMS abilitato.</GuideStep>
+            <GuideStep>Vai su Messaging, crea un <strong>Messaging Profile</strong>, poi in My Numbers assegna il profilo al numero appena comprato.</GuideStep>
+            <GuideStep>Vai su API Keys e copia la chiave in <span style={envVarStyle}>TELNYX_API_KEY</span>.</GuideStep>
+            <GuideStep>Inserisci il numero comprato (formato internazionale, es. <span style={envVarStyle}>+393331234567</span>) in <span style={envVarStyle}>TELNYX_FROM_NUMBER</span>.</GuideStep>
+          </ol>
+          <p style={{ margin: '12px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+            Account unico di piattaforma, come per le email: il nome del salone compare nel testo del messaggio, nessuna configurazione richiesta ai singoli saloni.
+          </p>
+        </IntegrationGuide>
+
+        <IntegrationGuide
+          id="whatsapp"
+          icon={<Phone size={22} color="#25D366" />}
+          title="WhatsApp — Telnyx"
+          subtitle="Notifiche automatiche via WhatsApp (in aggiunta a SMS ed email)"
+          status="prossimamente"
+          open={openGuide === 'whatsapp'}
+          onToggle={toggleGuide}
+        >
+          <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#475569' }}>
+            Non ancora implementato lato codice. A differenza dell'SMS, WhatsApp richiede una verifica Business su Meta e template di messaggio pre-approvati (fino a 24-48h di attesa) prima di poter inviare qualsiasi notifica automatica. Passaggi da completare quando si vorrà attivarlo:
+          </p>
+          <ol style={{ margin: 0, paddingLeft: '20px' }}>
+            <GuideStep>Crea/verifica un <strong>account Meta Business Manager</strong> (richiesto da Meta per l'accesso a WhatsApp Business Platform).</GuideStep>
+            <GuideStep>Nel Portale Telnyx: Messaging → WhatsApp → <strong>Connect WhatsApp Business Account</strong>, e completa la Embedded Signup con le credenziali Meta Business.</GuideStep>
+            <GuideStep>Verifica un numero di telefono dedicato a WhatsApp (non può essere lo stesso già usato con WhatsApp personale).</GuideStep>
+            <GuideStep>Crea i template di messaggio (es. promemoria appuntamento) e attendi l'approvazione di Meta (24-48h).</GuideStep>
+            <GuideStep>Una volta approvati i template, l'invio via WhatsApp può essere implementato sullo stesso schema già usato per l'SMS (account unico di piattaforma).</GuideStep>
+          </ol>
+          <a href="https://developers.telnyx.com/docs/messaging/whatsapp/quickstart/index.md" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '12px', fontSize: '0.85rem', color: '#6366f1', textDecoration: 'none', fontWeight: '600' }}>
+            Guida completa Telnyx WhatsApp <ExternalLink size={14} />
+          </a>
+        </IntegrationGuide>
       </div>
     </div>
   );
