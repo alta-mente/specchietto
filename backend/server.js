@@ -2897,7 +2897,7 @@ app.post('/api/appointments', async (req, res) => {
           sendCustomerConfirmationEmail(created, restaurant);
         }
         // To Salon Admin
-        const admin = await dbGet('SELECT email FROM users WHERE restaurant_id = ? AND role = "admin"', [restaurant_id]);
+        const admin = await dbGet('SELECT email FROM users WHERE restaurant_id = ? AND role = "merchant"', [restaurant_id]);
         if (admin && admin.email) {
           sendSalonNotificationEmail(created, restaurant, admin.email);
         }
