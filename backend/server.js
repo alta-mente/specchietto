@@ -421,6 +421,8 @@ const initDb = async () => {
     `);
 
     await dbRun(`
+      try { await dbRun("ALTER TABLE waitlist ADD COLUMN customer_email TEXT"); } catch(e) {}
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS coupons (
         id TEXT PRIMARY KEY,
         restaurant_id TEXT,
@@ -3046,23 +3048,23 @@ app.get('/api/waitlist', requireAuth, async (req, res) => {
 
 app.post('/api/waitlist', async (req, res) => {
   try {
-    const { restaurant_id, customer_name, customer_phone, date_requested, time_preference, notes } = req.body;
+    const { restaurant_id, customer_name, customer_phone, customer_email, date_requested, time_preference, notes } = req.body;
     if (!restaurant_id || !customer_name || !customer_phone || !date_requested) {
       return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     }
 
     const id = 'wait-' + Math.random().toString(36).substr(2, 9);
     await dbRun(
-      `INSERT INTO waitlist (id, restaurant_id, customer_name, customer_phone, date_requested, time_preference, notes, status, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
-      [id, restaurant_id, customer_name, customer_phone, date_requested, time_preference || 'any', notes || '', Date.now()]
+      `INSERT INTO waitlist (id, restaurant_id, customer_name, customer_phone, customer_email, date_requested, time_preference, notes, status, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
+      [id, restaurant_id, customer_name, customer_phone, customer_email || '', date_requested, time_preference || 'any', notes || '', Date.now()]
     );
     
     // Auto-create customer in CRM if missing
     await dbRun(`
-      INSERT OR IGNORE INTO customers (phone, restaurant_id, name, created_at)
+      INSERT OR IGNORE INTO customers (phone, restaurant_id, name, email, created_at)
       VALUES (?, ?, ?, ?)
-    `, [customer_phone.trim(), restaurant_id, customer_name.trim(), Date.now()]);
+    `, [customer_phone.trim(), restaurant_id, customer_name.trim(), (customer_email || '').trim(), Date.now()]);
 
     const row = await dbGet('SELECT * FROM waitlist WHERE id = ?', [id]);
     io.to(restaurant_id).emit('waitlistUpdated', row);

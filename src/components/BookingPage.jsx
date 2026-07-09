@@ -541,6 +541,7 @@ export const BookingPage = ({ businessSlug }) => {
                   restaurant_id: restaurant.id,
                   customer_name: customerName.trim(),
                   customer_phone: customerPhone.trim(),
+                  customer_email: customerEmail.trim(),
                   date_requested: date,
                   time_preference: pref,
                   notes: notes.trim()
@@ -556,6 +557,7 @@ export const BookingPage = ({ businessSlug }) => {
             }} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input type="text" name="name" autoComplete="name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nome e cognome *" required style={inputStyle} />
               <input type="tel" name="tel" autoComplete="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Telefono *" required style={inputStyle} />
+              <input type="email" name="email" autoComplete="email" value={customerEmail} onChange={(e) => {setCustomerEmail(e.target.value); storageService.setItem('customer_email', e.target.value);}} placeholder="Email (facoltativa per notifiche)" style={inputStyle} />
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ color: '#fff', fontSize: '0.9rem', marginLeft: '4px' }}>Preferenza Orario</label>
