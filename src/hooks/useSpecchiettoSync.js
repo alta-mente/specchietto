@@ -150,8 +150,17 @@ export const useSpecchiettoSync = () => {
         await refreshTransactions();
         await refreshAppointments();
         await refreshCustomers(); // to update loyalty points
+        return true;
       }
-    } catch(e) {}
+      let message = 'Errore durante il salvataggio del pagamento.';
+      try {
+        const body = await res.json();
+        if (body?.error) message = body.error;
+      } catch(e) {}
+      throw new Error(message);
+    } catch(e) {
+      throw e instanceof Error ? e : new Error('Errore di rete durante il pagamento.');
+    }
   }, [restaurantId, authHeaders, refreshTransactions, refreshAppointments, refreshCustomers]);
   
   const refreshReviews = useCallback(async () => {

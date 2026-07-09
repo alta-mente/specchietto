@@ -9,6 +9,7 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
   const discountValue = useMemo(() => {
     if (!discountCode || !sync.coupons) return 0;
@@ -40,10 +41,16 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
 
   const handleCheckout = async () => {
     setProcessing(true);
-    await sync.checkoutAppointment(appointment.id, total, paymentMethod, items, discountCode);
-    setProcessing(false);
-    setSuccess(true);
-    setTimeout(onClose, 2000);
+    setError('');
+    try {
+      await sync.checkoutAppointment(appointment.id, total, paymentMethod, items, discountCode);
+      setProcessing(false);
+      setSuccess(true);
+      setTimeout(onClose, 2000);
+    } catch (e) {
+      setProcessing(false);
+      setError(e?.message || 'Errore durante il salvataggio del pagamento. Riprova.');
+    }
   };
 
   if (success) {
@@ -118,14 +125,21 @@ export const CheckoutModal = ({ appointment, sync, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Totale da Pagare</div>
-            <div style={{ fontSize: '2rem', fontWeight: '900', color: '#0f172a' }}>€{total.toFixed(2)}</div>
+        <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+          {error && (
+            <div style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#b91c1c', fontSize: '0.85rem', fontWeight: '600' }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '0.85rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.5px' }}>Totale da Pagare</div>
+              <div style={{ fontSize: '2rem', fontWeight: '900', color: '#0f172a' }}>€{total.toFixed(2)}</div>
+            </div>
+            <button disabled={processing} onClick={handleCheckout} style={{ padding: '16px 32px', backgroundColor: '#38bdf8', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1.1rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px 0 rgba(56,189,248,0.39)' }}>
+              <Euro size={20} /> {processing ? 'Elaborazione...' : 'Conferma e Incassa'}
+            </button>
           </div>
-          <button disabled={processing} onClick={handleCheckout} style={{ padding: '16px 32px', backgroundColor: '#38bdf8', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '1.1rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px 0 rgba(56,189,248,0.39)' }}>
-            <Euro size={20} /> {processing ? 'Elaborazione...' : 'Conferma e Incassa'}
-          </button>
         </div>
       </div>
     </div>

@@ -1220,7 +1220,7 @@ const sendReminderEmail = async (appointment, restaurant) => {
 };
 
 const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
-  if (!appointment.customer_email || !appointment.customer_email.includes('@')) return;
+  if (!appointment.customer_email || !appointment.customer_email.includes('@')) return false;
 
   const subject = `Com'è andata da ${restaurant.name}?`;
   const frontendUrl = process.env.FRONTEND_URL || 'https://specchietto.vercel.app'; // Default vercel app if env not set
@@ -1246,16 +1246,18 @@ const sendReviewEmail = async (appointment, restaurant, googleReviewLink) => {
   const htmlBody = buildHtmlEmail(subject, "La tua opinione conta", contentHtml, null, null, `Richiesta recensione da ${restaurant.name}.`, restaurant);
 
   if (!resendClient) {
-    console.log(`✉️ [Email Simulata] Richiesta recensione a ${appointment.customer_email}`);
-    return;
+    console.log(`✉️ [Email Simulata] Richiesta recensione a ${appointment.customer_email} (RESEND_API_KEY non configurata: email NON realmente inviata)`);
+    return false;
   }
 
   try {
     let fromEmail = 'noreply@specchietto.app';
     if (RESEND_FROM) { const match = RESEND_FROM.match(/<([^>]+)>/); if (match && match[1]) fromEmail = match[1]; }
     await resendClient.emails.send({ from: `"${restaurant.name}" <${fromEmail}>`, to: appointment.customer_email, subject, text: bodyText, html: htmlBody });
+    return true;
   } catch (err) {
     console.error('❌ Errore richiesta recensione:', err);
+    return false;
   }
 };
 
@@ -3059,8 +3061,8 @@ app.put('/api/appointments/:id/status', requireAuth, async (req, res) => {
         try {
           const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [existing.restaurant_id]);
           const googleLink = restaurant?.google_review_link || null;
-          await sendReviewEmail(existing, restaurant, googleLink);
-          await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [existing.id]);
+          const sent = await sendReviewEmail(existing, restaurant, googleLink);
+          if (sent) await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [existing.id]);
         } catch (e) {
           console.error('Errore invio email recensione dal checkout:', e);
         }
@@ -3139,8 +3141,8 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
         try {
           const restaurant = await dbGet('SELECT * FROM restaurants WHERE id = ?', [restaurant_id]);
           const googleLink = restaurant?.google_review_link || null;
-          await sendReviewEmail(apt, restaurant, googleLink);
-          await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [appointment_id]);
+          const sent = await sendReviewEmail(apt, restaurant, googleLink);
+          if (sent) await dbRun('UPDATE appointments SET survey_sent = 1 WHERE id = ?', [appointment_id]);
         } catch (e) {
           console.error('Errore invio email recensione dal checkout:', e);
         }
@@ -3287,8 +3289,8 @@ const checkAndSendReviews = async () => {
         const googleLink = setting ? setting.value : null;
 
         console.log(`[Reviews] Sending review request to ${apt.customer_email} for apt ${apt.id}`);
-        await sendReviewEmail(apt, restaurant, googleLink);
-        await dbRun("UPDATE appointments SET survey_sent = 1 WHERE id = ?", [apt.id]);
+        const sent = await sendReviewEmail(apt, restaurant, googleLink);
+        if (sent) await dbRun("UPDATE appointments SET survey_sent = 1 WHERE id = ?", [apt.id]);
       }
     }
   } catch (err) {
